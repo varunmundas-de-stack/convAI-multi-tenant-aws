@@ -17,7 +17,6 @@ from semantic_layer.validator import SemanticValidator
 from security.rls import RowLevelSecurity, UserContext
 from security.audit import AuditLogger
 from query_engine.executor import QueryExecutor
-from connectors.duckdb_connector import DuckDBConnector
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel

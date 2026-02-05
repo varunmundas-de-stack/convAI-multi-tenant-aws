@@ -313,6 +313,71 @@
             border-top: 1px solid #eee;
         }
 
+        .mode-selector-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            align-items: center;
+        }
+
+        .mode-selector-label {
+            font-size: 13px;
+            font-weight: 600;
+            color: #666;
+        }
+
+        .mode-selector {
+            display: flex;
+            gap: 5px;
+            flex-wrap: wrap;
+        }
+
+        .mode-option {
+            padding: 6px 14px;
+            border: 2px solid #eee;
+            border-radius: 20px;
+            background: white;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+            user-select: none;
+        }
+
+        .mode-option:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .mode-option.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+
+        .mode-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+
+        .standard-mode {
+            background: #e3f2fd;
+            color: #1976d2;
+        }
+
+        .ai-enhanced-mode {
+            background: #f3e5f5;
+            color: #7b1fa2;
+        }
+
+        .chromadb-mode {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
         .chat-input-wrapper {
             display: flex;
             gap: 10px;
@@ -438,6 +503,20 @@
         </div>
 
         <div class="chat-input-container">
+            <div class="mode-selector-container">
+                <span class="mode-selector-label">Query Mode:</span>
+                <div class="mode-selector">
+                    <div class="mode-option active" data-mode="standard" title="Traditional keyword-based matching">
+                        📊 Standard
+                    </div>
+                    <div class="mode-option" data-mode="ai-enhanced" title="ChromaDB similarity + better intent parsing">
+                        🤖 AI-Enhanced
+                    </div>
+                    <div class="mode-option" data-mode="chromadb" title="Pure semantic search on embedded data">
+                        🔍 ChromaDB Direct
+                    </div>
+                </div>
+            </div>
             <div class="chat-input-wrapper">
                 <input
                     type="text"
@@ -456,8 +535,23 @@
         const chatInput = document.getElementById('chatInput');
         const sendButton = document.getElementById('sendButton');
         const suggestionChips = document.getElementById('suggestionChips');
+        const modeOptions = document.querySelectorAll('.mode-option');
 
         let isProcessing = false;
+        let selectedMode = 'standard'; // Default mode
+
+        // Handle mode selection
+        modeOptions.forEach(option => {
+            option.addEventListener('click', () => {
+                // Remove active class from all options
+                modeOptions.forEach(opt => opt.classList.remove('active'));
+                // Add active class to clicked option
+                option.classList.add('active');
+                // Update selected mode
+                selectedMode = option.dataset.mode;
+                console.log('Mode changed to:', selectedMode);
+            });
+        });
 
         // Load suggestions
         fetch('/api/suggestions')
@@ -502,13 +596,16 @@
             // Show typing indicator
             const typingId = addTypingIndicator();
 
-            // Send to backend
+            // Send to backend with selected mode
             fetch('/api/query', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ question })
+                body: JSON.stringify({
+                    question: question,
+                    mode: selectedMode
+                })
             })
             .then(res => res.json())
             .then(data => {

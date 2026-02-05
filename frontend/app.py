@@ -16,6 +16,7 @@ from security.rls import RowLevelSecurity, UserContext
 from security.audit import AuditLogger
 from query_engine.executor import QueryExecutor
 from semantic_layer.orchestrator import QueryOrchestrator
+from vector_store.chromadb_query_executor import get_chromadb_executor
 import time
 import traceback
 
@@ -28,6 +29,7 @@ validator = SemanticValidator(semantic_layer)
 executor = QueryExecutor("database/cpg_olap.duckdb")
 orchestrator = QueryOrchestrator(semantic_layer, executor)
 audit_logger = AuditLogger("logs/audit.jsonl")
+chromadb_executor = get_chromadb_executor()  # ChromaDB for semantic search
 
 # Demo user context (can be customized)
 demo_user = UserContext(
@@ -51,6 +53,7 @@ def process_query():
     try:
         data = request.json
         question = data.get('question', '').strip()
+        mode = data.get('mode', 'standard').lower()  # standard, ai-enhanced, chromadb
 
         if not question:
             return jsonify({
@@ -118,6 +121,11 @@ def process_query():
                     "Why did sales drop?",
                     "Why did volume increase?",
                     "Analyze sales performance"
+                ],
+                "💡 Query Modes Available": [
+                    "Standard Mode: Traditional keyword-based matching",
+                    "AI-Enhanced Mode: ChromaDB similarity + better intent",
+                    "ChromaDB Direct: Pure semantic search on embedded data"
                 ],
                 "🎯 Filtered Queries": [
                     "Sales in Tamil Nadu this month",
@@ -300,6 +308,19 @@ This chatbot is specialized for <strong>CPG sales analytics only</strong>.
 • "Compare sales by channel"
 • "Weekly trend for last 6 weeks"'''
             })
+
+        # === MODE ROUTING ===
+
+        # Mode 1: ChromaDB Direct - Pure semantic search
+        if mode == 'chromadb':
+            return process_chromadb_query(question, demo_user)
+
+        # Mode 2: AI-Enhanced - Use ChromaDB to find similar queries, then DuckDB
+        elif mode == 'ai-enhanced':
+            return process_ai_enhanced_query(question, demo_user)
+
+        # Mode 3: Standard - Traditional flow (default)
+        # Continue with existing logic below...
 
         # 1. Parse intent
         start_time = time.time()
@@ -549,6 +570,156 @@ def format_value(value):
         return f'{value:,}'
     else:
         return str(value)
+
+
+def process_chromadb_query(question: str, user: UserContext):
+    """Process query using ChromaDB Direct mode (pure semantic search)"""
+    import time
+    start_time = time.time()
+
+    try:
+        # Execute semantic search on ChromaDB
+        result = chromadb_executor.execute_semantic_query(
+            question=question,
+            n_results=10
+        )
+
+        if not result['success']:
+            return jsonify({
+                'success': False,
+                'error': f"ChromaDB query failed: {result.get('error')}"
+            })
+
+        # Format results
+        html_response = f"""
+        <div class="mode-badge chromadb-mode">Mode: ChromaDB Direct</div>
+        <div class="chromadb-results">
+            <h3>Semantic Search Results</h3>
+            <p><em>Searched {len(result['collections_searched'])} collections</em></p>
+        """
+
+        if result['results']:
+            html_response += chromadb_executor.format_results_as_table(result['results'])
+        else:
+            html_response += '<p class="no-results">No results found</p>'
+
+        html_response += "</div>"
+
+        exec_time = (time.time() - start_time) * 1000
+
+        return jsonify({
+            'success': True,
+            'response': html_response,
+            'metadata': {
+                'query_id': f"CHROMA{int(time.time())}",
+                'intent': 'semantic_search',
+                'mode': 'chromadb',
+                'exec_time_ms': round(exec_time, 2),
+                'result_count': result['count']
+            }
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f"ChromaDB error: {str(e)}"
+        })
+
+
+def process_ai_enhanced_query(question: str, user: UserContext):
+    """Process query using AI-Enhanced mode (ChromaDB similarity + DuckDB execution)"""
+    import time
+    start_time = time.time()
+
+    try:
+        # Step 1: Find similar queries from ChromaDB
+        similar_queries = chromadb_executor.get_similar_queries(question, n_results=3)
+
+        # Step 2: Parse intent (intent parser can use similar queries as context)
+        semantic_query = intent_parser.parse(question)
+        parse_time = (time.time() - start_time) * 1000
+
+        # Step 3: Validate
+        errors = validator.validate(semantic_query)
+        if errors:
+            return jsonify({
+                'success': False,
+                'error': f"Validation error: {', '.join(errors)}"
+            })
+
+        # Step 4: Apply security
+        secured_query = RowLevelSecurity.apply_security(semantic_query, user)
+
+        # Step 5: Execute on DuckDB using orchestrator
+        exec_start = time.time()
+        result = orchestrator.execute(secured_query)
+        exec_time = (time.time() - exec_start) * 1000
+
+        # Step 6: Format response with AI-enhanced badge
+        if result['query_type'] == 'diagnostic':
+            response = format_diagnostic_response(result)
+        else:
+            response = format_single_query_response(result)
+
+        # Add AI-Enhanced badge and similar queries section
+        enhanced_response = f"""
+        <div class="mode-badge ai-enhanced-mode">Mode: AI-Enhanced</div>
+        <div class="similar-queries-section">
+            <details>
+                <summary>📚 Similar Queries Found ({len(similar_queries)})</summary>
+                <ul class="similar-queries-list">
+        """
+
+        for sq in similar_queries:
+            enhanced_response += f"""
+                <li>
+                    <strong>{sq['query']}</strong>
+                    <span class="similarity-score">{sq['similarity']:.2%} match</span>
+                    <em>{sq['metadata'].get('intent', 'N/A')}</em>
+                </li>
+            """
+
+        enhanced_response += """
+                </ul>
+            </details>
+        </div>
+        """ + response
+
+        # Audit log
+        query_id = f"AI{int(time.time())}"
+        audit_logger.log_query(
+            query_id=query_id,
+            user_id=user.user_id,
+            semantic_query=semantic_query.dict(),
+            sql=result.get('sql', ''),
+            result_count=result.get('metadata', {}).get('row_count', 0),
+            exec_time=exec_time,
+            success=True,
+            error=None
+        )
+
+        total_time = (time.time() - start_time) * 1000
+
+        return jsonify({
+            'success': True,
+            'response': enhanced_response,
+            'metadata': {
+                'query_id': query_id,
+                'intent': semantic_query.intent.value,
+                'mode': 'ai-enhanced',
+                'parse_time_ms': round(parse_time, 2),
+                'exec_time_ms': round(exec_time, 2),
+                'total_time_ms': round(total_time, 2),
+                'confidence': semantic_query.confidence,
+                'similar_queries_found': len(similar_queries)
+            }
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f"AI-Enhanced mode error: {str(e)}"
+        })
 
 
 @app.route('/api/suggestions', methods=['GET'])

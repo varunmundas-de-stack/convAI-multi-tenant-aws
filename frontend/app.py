@@ -35,7 +35,7 @@ demo_user = UserContext(
     role="analyst",
     data_access_level="national",
     states=[],
-    zones=[]
+    regions=[]
 )
 
 

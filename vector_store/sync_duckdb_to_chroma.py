@@ -269,12 +269,16 @@ def main():
         print("=" * 60 + "\n")
 
         for result in results:
-            if result['status'] == 'success':
-                print(f"✓ {result['table']}: {result['rows_synced']} rows synced")
-            elif result['status'] == 'skipped':
-                print(f"⊘ {result['table']}: {result['reason']}")
+            table_name = result.get('table', 'Unknown table')
+            if result.get('status') == 'success':
+                rows = result.get('rows_synced', 0)
+                print(f"[OK] {table_name}: {rows} rows synced")
+            elif result.get('status') == 'skipped':
+                reason = result.get('reason', 'Unknown reason')
+                print(f"[SKIP] {table_name}: {reason}")
             else:
-                print(f"✗ {result['table']}: {result.get('error', 'Unknown error')}")
+                error = result.get('error', 'Unknown error')
+                print(f"[ERROR] {table_name}: {error}")
 
         # Get summary
         print("\n" + "=" * 60)

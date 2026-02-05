@@ -454,7 +454,7 @@ sql = query.to_sql()  # Automatic parameterization, injection-proof
 
 ---
 
-## Demo Scenarios for Your Boss
+## Demo Scenarios
 
 ### Scenario 1: Simple Query (30 seconds)
 **Question**: "Show top 5 brands by sales value"

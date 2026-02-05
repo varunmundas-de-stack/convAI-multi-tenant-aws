@@ -26,6 +26,7 @@ wheels/
 # Database files
 *.duckdb
 *.db
+database/chroma/
 
 # Logs
 logs/

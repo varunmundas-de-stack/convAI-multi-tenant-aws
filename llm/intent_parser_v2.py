@@ -191,11 +191,19 @@ A: {"intent": "trend", "metric_request": {"primary_metric": "secondary_sales_val
 Q: "Top 10 SKUs by volume this month"
 A: {"intent": "ranking", "metric_request": {"primary_metric": "secondary_sales_volume"}, "dimensionality": {"group_by": ["sku_name"]}, "time_context": {"window": "this_month"}, "sorting": {"order_by": "secondary_sales_volume", "direction": "DESC", "limit": 10}}
 
+Q: "Top distributors by sales value"
+A: {"intent": "ranking", "metric_request": {"primary_metric": "secondary_sales_value"}, "dimensionality": {"group_by": ["distributor_name"]}, "time_context": {"window": "last_4_weeks"}, "sorting": {"order_by": "secondary_sales_value", "direction": "DESC", "limit": 10}}
+
+Q: "Compare sales by channel"
+A: {"intent": "comparison", "metric_request": {"primary_metric": "secondary_sales_value"}, "dimensionality": {"group_by": ["channel_name"]}, "time_context": {"window": "last_4_weeks"}}
+
 Q: "Sales trend by week in Tamil Nadu"
 A: {"intent": "trend", "metric_request": {"primary_metric": "secondary_sales_value"}, "dimensionality": {"group_by": ["week"]}, "time_context": {"window": "last_12_weeks", "grain": "week"}, "filters": [{"dimension": "state_name", "operator": "=", "values": ["Tamil Nadu"]}]}
 
 Q: "Why did sales drop?"
 A: {"intent": "diagnostic", "metric_request": {"primary_metric": "secondary_sales_value"}, "dimensionality": {"group_by": []}, "time_context": {"window": "last_4_weeks"}, "diagnostics": {"enabled": true, "dimensions": ["brand_name", "state_name", "channel_name"]}}
+
+CRITICAL: When users ask for "top X", "compare", or mention a dimension (brands, channels, distributors, SKUs, states, etc.), ALWAYS include that dimension in group_by. Without group_by, the query will return a single total instead of the breakdown requested.
 
 Now parse the user's question and respond ONLY with JSON:"""
 
@@ -261,7 +269,7 @@ Parse into SemanticQuery JSON:"""
 
         # Detect grouping
         group_by = []
-        if any(word in question_lower for word in ['by brand', 'per brand']):
+        if any(word in question_lower for word in ['by brand', 'per brand', 'brand']):
             group_by.append('brand_name')
         if any(word in question_lower for word in ['by state', 'per state']):
             group_by.append('state_name')
@@ -269,8 +277,32 @@ Parse into SemanticQuery JSON:"""
             group_by.append('week')
         if any(word in question_lower for word in ['by month', 'monthly']):
             group_by.append('month_name')
-        if any(word in question_lower for word in ['by category']):
+        if any(word in question_lower for word in ['by category', 'categor']):
             group_by.append('category_name')
+        if any(word in question_lower for word in ['by channel', 'per channel', 'channel']):
+            group_by.append('channel_name')
+        if any(word in question_lower for word in ['distributor']):
+            group_by.append('distributor_name')
+        if any(word in question_lower for word in ['sku', 'product']):
+            group_by.append('sku_name')
+        if any(word in question_lower for word in ['retailer', 'by retailer']):
+            group_by.append('retailer_name')
+        if any(word in question_lower for word in ['by zone', 'zone']):
+            group_by.append('zone_name')
+        if any(word in question_lower for word in ['by district', 'district']):
+            group_by.append('district_name')
+
+        # Special case: "compare" usually means grouping by the dimension mentioned
+        if 'compare' in question_lower and not group_by:
+            # Try to find what to compare by
+            if 'channel' in question_lower:
+                group_by.append('channel_name')
+            elif 'brand' in question_lower:
+                group_by.append('brand_name')
+            elif 'state' in question_lower:
+                group_by.append('state_name')
+            elif 'distributor' in question_lower:
+                group_by.append('distributor_name')
 
         # Detect time window
         window = "last_4_weeks"

@@ -400,6 +400,9 @@ pytest tests/
 - [x] Results display (tables, diagnostics, metadata)
 - [x] SQL query visibility toggle
 - [x] Windows batch file for easy startup
+- [x] Help system with 35+ categorized example questions
+- [x] Meta-question handling (detects "help", "give me examples", etc.)
+- [x] Enhanced intent parser with better dimension detection
 
 ### Future Enhancements
 - [ ] Caching layer (Redis)
@@ -481,4 +484,23 @@ For questions or issues, contact the development team.
 - ✓ Phase 7: Integration & testing
 - ✓ **NEW: Web Chatbot Interface** (Flask-based chat UI for local desktop interaction)
 
-**Last Updated:** 2025-02-04
+**Last Updated:** 2026-02-05
+
+## Recent Updates (2026-02-05)
+
+### Enhanced Intent Parser
+- **Better Dimension Detection**: Added support for channel, distributor, SKU, retailer, zone, district
+- **"Compare" Keyword Handling**: Automatically extracts group_by dimensions from comparison questions
+- **Improved Fallback Parser**: More comprehensive keyword patterns for better accuracy
+
+### Interactive Help System
+- **Meta-Question Detection**: Recognizes help requests ("give me examples", "what can I ask?", etc.)
+- **Comprehensive Examples**: 35+ categorized sample questions organized by:
+  - 🏆 Ranking queries
+  - 📈 Trend analysis
+  - 🔍 Comparison & breakdown
+  - 📊 Snapshot queries
+  - 🔬 Diagnostic analysis
+  - 🎯 Filtered queries
+  - 💰 Different metrics
+- **User-Friendly Response**: Beautiful HTML rendering with categories and tips

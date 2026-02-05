@@ -320,22 +320,28 @@ python frontend\app.py
 
 ### Example Questions
 
+**Meta Commands:**
+- Type **"give me examples"** to see a comprehensive list of 35+ categorized questions
+
 Try these in the chatbot:
 - "Show top 5 brands by sales value"
 - "Weekly sales trend for last 6 weeks"
 - "Top 10 SKUs by volume this month"
 - "Sales by state this month"
-- "Why did sales change?" (triggers diagnostic workflow)
+- "Top distributors by sales value"
 - "Compare sales by channel"
+- "Why did sales change?" (triggers diagnostic workflow)
 
 ### Features
 
 - **Natural Language Input:** Ask questions in plain English
+- **Help System:** Type "give me examples" for 35+ categorized sample questions
 - **Rich Results:** Tables, trends, and diagnostic insights
 - **Query Suggestions:** Click quick suggestions to get started
 - **SQL Visibility:** View the generated SQL query
 - **Metadata Display:** See query intent, confidence, and execution time
 - **Diagnostic Workflows:** Automatic multi-query analysis for "why" questions
+- **Enhanced Intent Parsing:** Better detection of dimensions (channel, distributor, SKU, etc.)
 
 ### Chatbot Architecture
 

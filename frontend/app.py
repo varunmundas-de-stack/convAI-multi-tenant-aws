@@ -58,6 +58,117 @@ def process_query():
                 'error': 'Please enter a question'
             })
 
+        question_lower = question.lower()
+
+        # Handle meta/help questions - provide suggestions instead of querying
+        help_keywords = [
+            'what questions', 'what can i ask', 'what can you do',
+            'give me examples', 'show examples', 'sample questions',
+            'help me', 'what to ask', 'how to use', 'what should i ask',
+            'give me some questions', 'example queries', 'what other questions',
+            'example question', 'sample query'
+        ]
+
+        # Also check for single-word help triggers
+        help_triggers = ['help', 'examples', 'suggestions']
+        is_help_question = (
+            any(keyword in question_lower for keyword in help_keywords) or
+            question_lower.strip() in help_triggers or
+            (question_lower.startswith('help') and len(question_lower) < 10)
+        )
+
+        if is_help_question:
+            # Comprehensive list of all possible question types
+            suggestions = {
+                "🏆 Ranking Questions (Top/Bottom)": [
+                    "Show top 5 brands by sales value",
+                    "Top 10 SKUs by volume this month",
+                    "Top distributors by sales value",
+                    "Bottom 5 states by sales",
+                    "Top 10 retailers by invoice count",
+                    "Best performing channels by margin",
+                    "Top 5 categories by sales volume"
+                ],
+                "📈 Trend Analysis (Time Series)": [
+                    "Weekly sales trend for last 6 weeks",
+                    "Monthly sales trend for this year",
+                    "Sales volume by week for last 12 weeks",
+                    "Daily sales trend this month",
+                    "Quarterly sales trend",
+                    "Monthly margin trend for last 6 months"
+                ],
+                "🔍 Comparison & Breakdown": [
+                    "Compare sales by channel",
+                    "Sales by state this month",
+                    "Distribution by brand",
+                    "Sales by retailer type",
+                    "Compare volume by category",
+                    "Sales by zone",
+                    "Revenue by district"
+                ],
+                "📊 Snapshot Queries (Aggregates)": [
+                    "Total sales this month",
+                    "Total volume last month",
+                    "Total margin this quarter",
+                    "Invoice count this year",
+                    "Average selling price this month"
+                ],
+                "🔬 Diagnostic Analysis (Root Cause)": [
+                    "Why did sales change?",
+                    "Why did sales drop?",
+                    "Why did volume increase?",
+                    "Analyze sales performance"
+                ],
+                "🎯 Filtered Queries": [
+                    "Sales in Tamil Nadu this month",
+                    "Top brands in Karnataka",
+                    "Channel performance in South zone",
+                    "GT channel sales by state"
+                ],
+                "💰 Different Metrics": [
+                    "Show gross sales value by brand",
+                    "Discount amount by channel",
+                    "Margin by distributor",
+                    "Invoice count by state",
+                    "Return value by category"
+                ]
+            }
+
+            html_response = '<div class="suggestions-box">'
+            html_response += '<h3>📊 Complete List of Questions You Can Ask</h3>'
+
+            for category, questions in suggestions.items():
+                html_response += f'<div style="margin: 20px 0;">'
+                html_response += f'<h4 style="color: #667eea; margin-bottom: 10px; font-size: 16px;">{category}</h4>'
+                html_response += '<ul class="suggestions-list">'
+                for question in questions:
+                    html_response += f'<li>"{question}"</li>'
+                html_response += '</ul>'
+                html_response += '</div>'
+
+            html_response += '<div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-top: 20px; border-left: 4px solid #ffc107;">'
+            html_response += '<p style="margin: 0; font-size: 14px; color: #856404;"><strong>💡 Key Features:</strong></p>'
+            html_response += '<ul style="margin: 10px 0 0 20px; color: #856404; font-size: 13px;">'
+            html_response += '<li><strong>Dimensions:</strong> Brand, SKU, Category, State, Zone, District, Channel, Distributor, Retailer</li>'
+            html_response += '<li><strong>Metrics:</strong> Sales Value, Volume, Margin, Discounts, Invoice Count, Returns</li>'
+            html_response += '<li><strong>Time Periods:</strong> Last 4/6/12 weeks, This/Last Month, MTD, QTD, YTD</li>'
+            html_response += '<li><strong>Analysis Types:</strong> Ranking, Trends, Comparisons, Diagnostics, Snapshots</li>'
+            html_response += '</ul>'
+            html_response += '</div>'
+            html_response += '</div>'
+
+            return jsonify({
+                'success': True,
+                'response': html_response,
+                'metadata': {
+                    'query_id': f"HELP{int(time.time())}",
+                    'intent': 'help',
+                    'parse_time_ms': 0,
+                    'exec_time_ms': 0,
+                    'confidence': 1.0
+                }
+            })
+
         # Input validation: Check for out-of-scope questions
         out_of_scope_keywords = [
             'table', 'schema', 'column', 'database', 'metadata',
@@ -66,33 +177,79 @@ def process_query():
             'system', 'llm', 'model', 'backend', 'frontend'
         ]
 
-        question_lower = question.lower()
         if any(keyword in question_lower for keyword in out_of_scope_keywords):
             return jsonify({
                 'success': False,
-                'error': '''This chatbot answers CPG sales analytics questions only.
+                'error': '''⚠️ <strong>Out of Scope</strong>
 
-Out-of-scope question detected. Please try questions like:
+This chatbot answers <strong>CPG sales analytics questions only</strong>.
+
+I cannot answer questions about:
+• Database schema/metadata
+• System architecture
+• How the chatbot works
+• General knowledge questions
+
+💡 <strong>Try typing "give me examples"</strong> to see what I CAN answer!
+
+Quick examples:
 • "Show top 5 brands by sales value"
+• "Compare sales by channel"
 • "Weekly sales trend for last 6 weeks"
-• "Why did sales change?"
-• "Top SKUs by volume this month"
-• "Sales by state"
 
-For database metadata, use: python explore_database.py'''
+<em>For database metadata, use the CLI tool: python explore_database.py</em>'''
             })
 
         # 1. Parse intent
         start_time = time.time()
-        semantic_query = intent_parser.parse(question)
+        try:
+            semantic_query = intent_parser.parse(question)
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': f'''Sorry, I couldn't understand that question.
+
+This chatbot answers CPG sales analytics questions only.
+
+💡 <strong>Try typing "give me examples"</strong> to see 35+ sample questions I can answer!
+
+Or try questions like:
+• "Show top 5 brands by sales value"
+• "Compare sales by channel"
+• "Weekly sales trend"'''
+            })
+
         parse_time = (time.time() - start_time) * 1000
+
+        # Check confidence level - if too low, suggest examples
+        if semantic_query.confidence < 0.5:
+            return jsonify({
+                'success': False,
+                'error': f'''I'm not confident I understood your question correctly (confidence: {semantic_query.confidence:.0%}).
+
+💡 <strong>Try typing "give me examples"</strong> to see questions I can answer!
+
+Or rephrase your question more specifically, like:
+• "Top 10 SKUs by volume this month"
+• "Sales by state"
+• "Why did sales change?"'''
+            })
 
         # 2. Validate
         errors = validator.validate(semantic_query)
         if errors:
             return jsonify({
                 'success': False,
-                'error': f"Validation failed: {', '.join(errors)}"
+                'error': f'''Sorry, I couldn't process that question.
+
+<strong>Issue:</strong> {', '.join(errors)}
+
+💡 <strong>Try typing "give me examples"</strong> to see valid questions!
+
+Common issues:
+• Check metric names (e.g., "sales value", "volume", "margin")
+• Check dimension names (e.g., "brand", "state", "channel")
+• Ensure you're asking about sales analytics data'''
             })
 
         # 3. Apply security (optional - currently using demo user with national access)
@@ -140,7 +297,20 @@ For database metadata, use: python explore_database.py'''
 
         return jsonify({
             'success': False,
-            'error': f"Error: {str(e)}"
+            'error': f'''❌ <strong>Unexpected Error</strong>
+
+Something went wrong while processing your question.
+
+<strong>Error:</strong> {str(e)}
+
+💡 <strong>Try typing "give me examples"</strong> to see questions that work!
+
+Or try simpler questions like:
+• "Total sales this month"
+• "Top 5 brands by sales"
+• "Sales by state"
+
+If the problem persists, please contact support.'''
         })
 
 
@@ -148,12 +318,13 @@ def format_single_query_response(result):
     """Format single query results as HTML"""
     html_parts = []
 
-    # Add SQL query (collapsible)
+    # Add SQL query (collapsible) - use unique ID for each query
     if 'sql' in result:
+        sql_id = f"sqlQuery{int(time.time() * 1000)}"  # Unique ID with milliseconds
         html_parts.append(f"""
         <div class="sql-section">
-            <button class="sql-toggle" onclick="toggleSQL()">Show SQL Query</button>
-            <pre class="sql-query" id="sqlQuery" style="display:none;">{result['sql']}</pre>
+            <button class="sql-toggle" onclick="toggleSQL('{sql_id}')">Show SQL Query</button>
+            <pre class="sql-query" id="{sql_id}" style="display:none;">{result['sql']}</pre>
         </div>
         """)
 

@@ -185,6 +185,8 @@ This system enables business users to query CPG sales data using **natural langu
   - Diagnostic insights with recommendations
 - **Users**: Business analysts, managers, executives
 - **Access**: http://localhost:5000
+- **Help Command**: Type "give me examples" for 35+ categorized sample questions
+- **Enhanced Parsing**: Improved dimension detection for better accuracy
 
 #### CLI Demo (`demo_cpg_system.py`)
 - **Purpose**: Developer testing and validation
@@ -456,6 +458,25 @@ sql = query.to_sql()  # Automatic parameterization, injection-proof
 
 ## Demo Scenarios
 
+### Scenario 0: Help System (20 seconds)
+**Question**: "give me examples"
+
+**What happens**:
+1. System detects meta-question (not a data query)
+2. Shows 35+ categorized sample questions:
+   - Ranking queries (Top/Bottom)
+   - Trend analysis (Time series)
+   - Comparisons (Group by)
+   - Snapshots (Aggregates)
+   - Diagnostics (Root cause)
+   - Filtered queries
+   - Different metrics
+3. Beautiful categorized display with tips
+
+**Key point**: Self-service discovery of capabilities!
+
+---
+
 ### Scenario 1: Simple Query (30 seconds)
 **Question**: "Show top 5 brands by sales value"
 
@@ -627,13 +648,15 @@ Recommendations:
 
 ### During Demo:
 1. **Intro** (1 min): Show architecture diagram
-2. **Simple query** (30 sec): "Show top 5 brands by sales"
-3. **Trend query** (45 sec): "Weekly sales trend"
-4. **Diagnostic query** (60 sec): "Why did sales change?"
-5. **Security demo** (45 sec): Show RLS filtering
-6. **SQL visibility** (30 sec): Click "Show SQL Query"
+2. **Help system** (20 sec): Type "give me examples"
+3. **Simple query** (30 sec): "Show top 5 brands by sales"
+4. **Comparison query** (30 sec): "Compare sales by channel"
+5. **Trend query** (45 sec): "Weekly sales trend"
+6. **Diagnostic query** (60 sec): "Why did sales change?"
+7. **Security demo** (45 sec): Show RLS filtering
+8. **SQL visibility** (30 sec): Click "Show SQL Query"
 
-### Total Demo Time: ~5 minutes
+### Total Demo Time: ~6 minutes
 
 ---
 
@@ -681,4 +704,42 @@ A: 5 minutes. Just open browser → start asking questions!
 
 ---
 
+---
+
+## Latest Improvements (2026-02-05)
+
+### 🎯 Enhanced Intent Parser
+- **Problem**: Questions like "Compare sales by channel" or "Top distributors" returned single aggregates instead of breakdowns
+- **Solution**: Improved dimension detection patterns
+  - Added: channel, distributor, SKU, retailer, zone, district
+  - Special "compare" keyword handling
+  - More comprehensive fallback patterns
+- **Result**: Accurate GROUP BY detection for all question types
+
+### 💡 Interactive Help System
+- **Problem**: Generic questions like "what can I ask?" executed meaningless queries
+- **Solution**: Meta-question detection
+  - Recognizes help requests automatically
+  - Returns 35+ categorized examples
+  - Beautiful HTML rendering with categories
+- **Command**: Type "give me examples" in chatbot
+- **Categories**:
+  - 🏆 Ranking (7 examples)
+  - 📈 Trend (6 examples)
+  - 🔍 Comparison (7 examples)
+  - 📊 Snapshot (5 examples)
+  - 🔬 Diagnostic (4 examples)
+  - 🎯 Filtered (4 examples)
+  - 💰 Metrics (5 examples)
+
+### 🎨 User Experience
+- Professional gradient styling
+- Hover effects on suggestions
+- Clear categorization
+- Helpful tips and feature summary
+
+---
+
 **Ready to present! Good luck with your demo! 🚀**
+
+**Version:** 1.1.0 (Updated 2026-02-05)

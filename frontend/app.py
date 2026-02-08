@@ -248,7 +248,7 @@ Quick examples:
 • "Compare sales by channel"
 • "Weekly sales trend for last 6 weeks"
 
-<em>For database metadata, use the CLI tool: python explore_database.py</em>'''
+<em>For database metadata, use the CLI tool: python demos/explore_database.py</em>'''
             })
 
         # Final check: Does question contain ANY business-relevant keywords?

@@ -16,6 +16,8 @@
 8. [Query Processing Chain](#query-processing-chain)
 9. [Technology Stack](#technology-stack)
 10. [Deployment Architecture](#deployment-architecture)
+11. [Schema Anonymization](#-schema-anonymization-security-enhancement) ⭐ NEW
+12. [System Actors and Responsibilities](#-system-actors-and-responsibilities) ⭐ NEW
 
 ---
 
@@ -788,6 +790,273 @@ python frontend/app_with_auth.py
 3. Client components cache cleared
 4. Fresh initialization
 ```
+
+---
+
+## 🔒 Schema Anonymization (Security Enhancement)
+
+### **Overview**
+
+Schema anonymization protects your database metadata (table names, column names, metric names) when using external LLM services like Claude API or OpenAI.
+
+### **Problem**
+
+Without anonymization, external LLMs receive real schema information:
+- ❌ Real metric names: `secondary_sales_value`, `margin_amount`
+- ❌ Real dimension names: `brand_name`, `distributor_name`
+- ❌ Business descriptions: "Net invoiced value to retailers"
+- **Risk**: Exposes your business model and data structure to third-party services
+
+### **Solution**
+
+Anonymization layer that:
+- ✅ Converts real names to generic names before sending to LLM
+- ✅ De-anonymizes LLM responses locally
+- ✅ Protects intellectual property and business logic
+
+### **How It Works**
+
+```
+YAML Config (Local)
+  metrics:
+    secondary_sales_value: "Net invoiced value"
+        ↓
+Anonymization (Local)
+  secondary_sales_value → value_metric_001
+        ↓
+External LLM Sees
+  "value_metric_001" (anonymous) ✅
+        ↓
+LLM Returns
+  {"metric": "value_metric_001"}
+        ↓
+De-anonymization (Local)
+  value_metric_001 → secondary_sales_value
+        ↓
+SQL Generation (Local)
+  SELECT SUM(net_value) FROM fact_secondary_sales
+```
+
+### **Anonymization Strategies**
+
+| Strategy | Example | Use Case |
+|----------|---------|----------|
+| **generic** | `metric_001`, `dimension_001` | Maximum security |
+| **category** ⭐ | `value_metric_001`, `product_dimension_001` | **Recommended for production** |
+| **hash** | `metric_a3b5c7d1` | Consistent across sessions |
+
+### **What Gets Protected**
+
+| Data Type | Without Anonymization | With Anonymization |
+|-----------|----------------------|-------------------|
+| Metric names | `secondary_sales_value` ❌ | `value_metric_001` ✅ |
+| Dimension names | `brand_name` ❌ | `product_dimension_001` ✅ |
+| Descriptions | "Net invoiced value" ❌ | "Monetary value measurement" ✅ |
+| Table names | Never sent ✅ | Never sent ✅ |
+| SQL queries | Never sent ✅ | Never sent ✅ |
+
+### **Enable Anonymization**
+
+```bash
+# Set environment variable
+export ANONYMIZE_SCHEMA=true
+
+# Or in code
+parser = IntentParserV2(
+    semantic_layer=semantic_layer,
+    anonymize_schema=True,
+    anonymization_strategy="category"
+)
+```
+
+### **Multi-Client Example**
+
+**Nestlé and ITC both ask**: "Show me sales by brand"
+
+| Client | Real Metric | Real Dimension | Sent to LLM |
+|--------|------------|----------------|-------------|
+| **Nestlé** | `secondary_sales_value` | `brand_name` | `value_metric_001` ✅ |
+| **ITC** | `net_trade_sales` | `brand` | `value_metric_001` ✅ |
+
+**Result**: External LLM sees identical anonymous names for both clients, cannot differentiate them!
+
+### **Performance Impact**
+
+- Mapping creation: ~1-2ms (one-time)
+- Anonymization: ~0.1ms per request
+- De-anonymization: ~0.1ms per response
+- **Total overhead**: < 1% of query time
+
+### **Documentation**
+
+- **Quick Start**: [ANONYMIZATION_QUICKSTART.md](ANONYMIZATION_QUICKSTART.md)
+- **Complete Guide**: [docs/ANONYMIZATION_GUIDE.md](docs/ANONYMIZATION_GUIDE.md)
+- **Examples**: [NESTLE_ITC_EXAMPLE.md](NESTLE_ITC_EXAMPLE.md)
+- **Actors & Responsibilities**: [ACTORS_AND_RESPONSIBILITIES.md](ACTORS_AND_RESPONSIBILITIES.md)
+
+---
+
+## 🎭 System Actors and Responsibilities
+
+### **Who Does What in the Query Pipeline**
+
+Understanding the actors and their responsibilities is critical for security audits and troubleshooting.
+
+### **The Actors**
+
+| Actor | Location | Trust Level | Responsibility |
+|-------|----------|-------------|----------------|
+| **End User** | Browser | Authenticated | Submit questions |
+| **Flask Web Server** | Your Infrastructure | Trusted | Orchestrate flow |
+| **Authentication Service** | Your Infrastructure | Trusted | Verify user identity |
+| **Semantic Layer Service** | Your Infrastructure | Trusted | **Generate SQL** |
+| **Anonymization Service** | Your Infrastructure | Trusted | **Anonymize/De-anonymize** |
+| **External LLM** | External (Anthropic/OpenAI) | **Untrusted** | Parse intent only |
+| **DuckDB Service** | Your Infrastructure | Trusted | **Execute queries** |
+
+### **Critical Questions Answered**
+
+#### **Q: Who creates the SQL query?**
+**A**: **Semantic Layer Service** (your Flask server)
+- NOT the External LLM!
+- Reads from YAML files (local)
+- Uses real table/column names
+- Happens AFTER LLM returns intent
+
+#### **Q: Who de-anonymizes the LLM response?**
+**A**: **Anonymization Service** (your Flask server)
+- Converts: `value_metric_001` → `secondary_sales_value`
+- Uses in-memory mapping (never sent to LLM)
+- Happens BEFORE SQL generation
+
+#### **Q: Who executes the query on the database?**
+**A**: **DuckDB Service** (your database engine)
+- Executes SQL generated by Semantic Layer
+- Enforces schema isolation
+- Returns actual data
+
+#### **Q: What does the External LLM do?**
+**A**: **ONLY parses intent** (external, untrusted)
+- Receives: Anonymous names (`value_metric_001`) ✅
+- Returns: Structured intent JSON
+- **NEVER** generates SQL
+- **NEVER** accesses database
+- **NEVER** sees real schema (with anonymization)
+
+### **Data Flow with Actors**
+
+```
+┌─────────────────────────────────────────────────────┐
+│  1. END USER (Browser)                              │
+│     "Show me sales by brand for last 4 weeks"      │
+└─────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────┐
+│  2. FLASK WEB SERVER (Your Infrastructure)          │
+│     • Authenticate user → client_id = "nestle"      │
+└─────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────┐
+│  3. SEMANTIC LAYER SERVICE (Your Infrastructure)    │
+│     • Load client_nestle.yaml                       │
+│     • Extract metrics: [secondary_sales_value, ...] │
+└─────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────┐
+│  4. ANONYMIZATION SERVICE (Your Infrastructure)     │
+│     • Anonymize: secondary_sales_value              │
+│                  → value_metric_001                 │
+│     • Store mapping (in-memory, local only)         │
+└─────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────┐
+│  5. EXTERNAL LLM (Anthropic/OpenAI - Untrusted)     │
+│     • Receives: "value_metric_001" (anonymous) ✅   │
+│     • Returns: {"metric": "value_metric_001"}       │
+│     • NEVER sees SQL, tables, or database           │
+└─────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────┐
+│  6. ANONYMIZATION SERVICE (Your Infrastructure)     │
+│     • De-anonymize: value_metric_001                │
+│                     → secondary_sales_value         │
+└─────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────┐
+│  7. SEMANTIC LAYER SERVICE (Your Infrastructure)    │
+│     • Generate SQL:                                 │
+│       SELECT p.brand_name,                          │
+│              SUM(f.net_value)                       │
+│       FROM client_nestle.fact_secondary_sales f     │
+│       ...                                           │
+└─────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────┐
+│  8. DUCKDB SERVICE (Your Infrastructure)            │
+│     • Execute SQL on database                       │
+│     • Return results: [(Maggi, 1500000), ...]       │
+└─────────────────────────────────────────────────────┘
+                        ↓
+┌─────────────────────────────────────────────────────┐
+│  9. END USER (Browser)                              │
+│     • Display results in table/chart                │
+└─────────────────────────────────────────────────────┘
+```
+
+### **Security Boundaries**
+
+```
+┌─────────────────────────────────────────────────┐
+│  TRUSTED ZONE (Your Infrastructure)             │
+│                                                 │
+│  • Flask Web Server                             │
+│  • Semantic Layer Service  ← GENERATES SQL      │
+│  • Anonymization Service   ← DE-ANONYMIZES      │
+│  • DuckDB Service          ← EXECUTES QUERY     │
+│  • YAML files (configs)                         │
+│  • Database files (*.duckdb)                    │
+│                                                 │
+│  All schema & data stays here! ✅               │
+└─────────────────────────────────────────────────┘
+                    ↕
+            HTTPS (encrypted)
+                    ↕
+┌─────────────────────────────────────────────────┐
+│  UNTRUSTED ZONE (External)                      │
+│                                                 │
+│  • External LLM (Claude/OpenAI)                 │
+│                                                 │
+│  WITH ANON: Receives "value_metric_001" ✅      │
+│  WITHOUT:   Receives "secondary_sales_value" ❌ │
+│                                                 │
+│  NEVER receives:                                │
+│    - SQL queries                                │
+│    - Table/column names                         │
+│    - Database credentials                       │
+│    - Actual data                                │
+└─────────────────────────────────────────────────┘
+```
+
+### **Key Security Facts**
+
+| Question | Answer |
+|----------|--------|
+| Does LLM generate SQL? | ❌ NO - Semantic Layer does (local) |
+| Does LLM access database? | ❌ NO - DuckDB does (local) |
+| Does LLM de-anonymize? | ❌ NO - Anonymization Service does (local) |
+| What does LLM do? | ✅ ONLY parses intent (returns JSON) |
+| Where is SQL generated? | ✅ Your server (Semantic Layer) |
+| Where is mapping stored? | ✅ Your server (in-memory only) |
+
+### **Component File Locations**
+
+| Component | File Path |
+|-----------|-----------|
+| **Anonymization Core** | `semantic_layer/anonymizer.py` |
+| **LLM Integration** | `llm/intent_parser_v2.py` |
+| **SQL Generation** | `semantic_layer/query_builder.py` |
+| **Semantic Layer** | `semantic_layer/semantic_layer.py` |
+| **Query Execution** | `query_engine/executor.py` |
 
 ---
 

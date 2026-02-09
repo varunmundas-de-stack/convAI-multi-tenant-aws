@@ -20,6 +20,7 @@ from semantic_layer.schemas import (
     TimeContext, Filter, Sorting, ResultShape, IntentType
 )
 from semantic_layer.semantic_layer import SemanticLayer
+from semantic_layer.anonymizer import AnonymizationMapper
 
 
 class IntentParserV2:
@@ -32,7 +33,9 @@ class IntentParserV2:
         self,
         semantic_layer: SemanticLayer,
         model: str = "llama3.2:3b",
-        use_claude: bool = False
+        use_claude: bool = False,
+        anonymize_schema: bool = False,
+        anonymization_strategy: str = "category"
     ):
         """
         Initialize parser.
@@ -41,12 +44,18 @@ class IntentParserV2:
             semantic_layer: Semantic layer instance
             model: Ollama model name (default: llama3.2:3b)
             use_claude: Whether to use Claude API instead of Ollama
+            anonymize_schema: Whether to anonymize schema when sending to external LLM (recommended for production)
+            anonymization_strategy: Strategy for anonymization ("generic", "category", or "hash")
         """
         self.semantic_layer = semantic_layer
         self.model = model
 
         # Check environment variable
         self.use_claude = use_claude or os.getenv("USE_CLAUDE_API", "false").lower() == "true"
+
+        # Anonymization settings
+        self.anonymize_schema = anonymize_schema or os.getenv("ANONYMIZE_SCHEMA", "false").lower() == "true"
+        self.anonymizer = AnonymizationMapper(strategy=anonymization_strategy) if self.anonymize_schema else None
 
         if self.use_claude:
             if not ANTHROPIC_AVAILABLE:
@@ -96,6 +105,11 @@ class IntentParserV2:
         )
 
         intent_dict = self._extract_json(response['message']['content'])
+
+        # De-anonymize if needed
+        if self.anonymize_schema and self.anonymizer:
+            intent_dict = self.anonymizer.deanonymize_semantic_query(intent_dict)
+
         intent_dict['original_question'] = question
 
         return SemanticQuery(**intent_dict)
@@ -115,12 +129,26 @@ class IntentParserV2:
         )
 
         intent_dict = self._extract_json(response.content[0].text)
+
+        # De-anonymize if needed
+        if self.anonymize_schema and self.anonymizer:
+            intent_dict = self.anonymizer.deanonymize_semantic_query(intent_dict)
+
         intent_dict['original_question'] = question
 
         return SemanticQuery(**intent_dict)
 
     def _get_system_prompt(self) -> str:
-        """System prompt with SemanticQuery schema and CPG domain knowledge"""
+        """System prompt with SemanticQuery schema and domain knowledge"""
+        if self.anonymize_schema:
+            # Use generic anonymized prompt
+            return self._get_anonymized_system_prompt()
+        else:
+            # Use specific CPG domain prompt
+            return self._get_cpg_system_prompt()
+
+    def _get_cpg_system_prompt(self) -> str:
+        """CPG-specific system prompt with real metric/dimension names"""
         return """You are a CPG/Sales analytics expert. Extract structured semantic queries from business questions.
 
 Output ONLY valid JSON matching this schema:
@@ -207,11 +235,91 @@ CRITICAL: When users ask for "top X", "compare", or mention a dimension (brands,
 
 Now parse the user's question and respond ONLY with JSON:"""
 
+    def _get_anonymized_system_prompt(self) -> str:
+        """Generic anonymized system prompt - no real schema names exposed"""
+        return """You are a business analytics expert. Extract structured semantic queries from business questions.
+
+Output ONLY valid JSON matching this schema:
+
+{
+  "intent": "trend | comparison | ranking | diagnostic | snapshot",
+  "metric_request": {
+    "primary_metric": "value_metric_001",
+    "secondary_metrics": [],
+    "metric_variant": "absolute"
+  },
+  "dimensionality": {
+    "group_by": ["time_dimension_001", "product_dimension_001"]
+  },
+  "time_context": {
+    "time_dimension": "invoice_date",
+    "window": "last_4_weeks",
+    "grain": "week"
+  },
+  "filters": [
+    {"dimension": "geography_dimension_001", "operator": "=", "values": ["Value1"]}
+  ],
+  "sorting": {
+    "order_by": "value_metric_001",
+    "direction": "DESC",
+    "limit": 10
+  },
+  "result_shape": {
+    "format": "chart",
+    "chart_type": "line"
+  },
+  "confidence": 0.95
+}
+
+**Metric Categories:**
+- value_metric_*: Monetary value measurements
+- volume_metric_*: Quantity measurements
+- ratio_metric_*: Calculated ratios and percentages
+- count_metric_*: Count of items
+- average_metric_*: Average calculations
+
+**Dimension Categories:**
+- time_dimension_*: Time period attributes (year, quarter, month, week, day)
+- product_dimension_*: Product hierarchy attributes
+- geography_dimension_*: Geographic location attributes
+- customer_dimension_*: Customer relationship attributes
+- channel_dimension_*: Sales channel attributes
+
+**Time Windows:**
+last_4_weeks, last_6_weeks, last_12_weeks, mtd, qtd, ytd, this_month, last_month, this_year, last_year
+
+**Intent Types:**
+- snapshot: Single point-in-time aggregate (e.g., "total value this month")
+- trend: Time-series over multiple periods (e.g., "value by week")
+- comparison: Period-over-period (e.g., "this month vs last month")
+- ranking: Top/bottom N (e.g., "top 10 by value")
+- diagnostic: Root cause analysis (e.g., "why did value drop")
+
+**Examples:**
+
+Q: "Show value by product for last 4 weeks"
+A: {"intent": "trend", "metric_request": {"primary_metric": "value_metric_001"}, "dimensionality": {"group_by": ["product_dimension_001"]}, "time_context": {"window": "last_4_weeks"}}
+
+Q: "Top 10 items by volume this month"
+A: {"intent": "ranking", "metric_request": {"primary_metric": "volume_metric_001"}, "dimensionality": {"group_by": ["product_dimension_002"]}, "time_context": {"window": "this_month"}, "sorting": {"order_by": "volume_metric_001", "direction": "DESC", "limit": 10}}
+
+Q: "Compare value by channel"
+A: {"intent": "comparison", "metric_request": {"primary_metric": "value_metric_001"}, "dimensionality": {"group_by": ["channel_dimension_001"]}, "time_context": {"window": "last_4_weeks"}}
+
+CRITICAL: When users ask for "top X", "compare", or mention breaking down by category, ALWAYS include appropriate dimensions in group_by. Use the metric/dimension names provided in the "Available Metrics" and "Available Dimensions" lists.
+
+Now parse the user's question and respond ONLY with JSON:"""
+
     def _build_semantic_prompt(self, question: str) -> str:
         """Build prompt for semantic query extraction"""
         # Get available metrics/dimensions
         metrics_info = self.semantic_layer.list_available_metrics()
         dimensions_info = self.semantic_layer.list_available_dimensions()
+
+        # Anonymize if enabled
+        if self.anonymize_schema and self.anonymizer:
+            metrics_info, _ = self.anonymizer.anonymize_metrics(metrics_info)
+            dimensions_info, _ = self.anonymizer.anonymize_dimensions(dimensions_info)
 
         return f"""User Question: "{question}"
 

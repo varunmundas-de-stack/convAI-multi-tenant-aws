@@ -17,6 +17,7 @@ A production-ready CPG (Consumer Packaged Goods) analytics chatbot with Role-Bas
 - **Multi-Tenant RBAC** - Complete client data isolation (Nestlé, Unilever, ITC)
 - **Zero Data Leakage** - Client-specific YAML configs never cross-contaminate
 - **Semantic Layer** - Business metrics abstraction without exposing database schema
+- **🔒 Schema Anonymization** - Protect metadata when using external LLMs (Claude API, OpenAI)
 - **AST-Based SQL Generation** - Type-safe, injection-proof query construction
 - **Flask Authentication** - Secure session management with bcrypt password hashing
 - **DuckDB Multi-Schema** - Isolated schemas for each client in single database
@@ -145,7 +146,37 @@ python frontend/app_with_auth.py
 3. **SQL Injection Protection** - AST-based query generation (no string concatenation)
 4. **Schema Isolation** - Client schemas completely separated in database
 5. **YAML Isolation** - Only authorized client config loaded per user
-6. **Audit Trail** - All queries logged with user identity and timestamp
+6. **Schema Anonymization** - Protect metadata when using external LLMs ([Quick Start](ANONYMIZATION_QUICKSTART.md))
+7. **Audit Trail** - All queries logged with user identity and timestamp
+
+---
+
+## 🔒 Schema Anonymization (NEW)
+
+Protect your database schema metadata when using external LLMs:
+
+```python
+# Enable anonymization for production with Claude API
+export ANONYMIZE_SCHEMA=true
+export USE_CLAUDE_API=true
+
+# That's it! Your schema is now protected 🔒
+```
+
+**What gets protected:**
+- ✅ Metric names: `secondary_sales_value` → `value_metric_001`
+- ✅ Dimension names: `brand_name` → `product_dimension_001`
+- ✅ Descriptions: "Net invoiced value" → "Monetary value measurement"
+
+**What stays secure (never sent):**
+- ✅ Table names, column names, SQL expressions
+- ✅ Database credentials and connection strings
+- ✅ Actual data values
+
+**Quick Links:**
+- 📖 [Quick Start Guide](ANONYMIZATION_QUICKSTART.md) - Get started in 3 steps
+- 📚 [Complete Guide](docs/ANONYMIZATION_GUIDE.md) - Full documentation
+- 🧪 [Demo](demos/demo_anonymization.py) - See it in action
 
 ---
 
@@ -176,6 +207,7 @@ Conve-AI-Project-RelDB-Only/
 │   │   ├── client_unilever.yaml    # Unilever metrics & dimensions
 │   │   └── client_itc.yaml         # ITC metrics & dimensions
 │   ├── semantic_layer.py           # YAML loader & metric definitions
+│   ├── anonymizer.py               # Schema anonymization (NEW!)
 │   ├── query_builder.py            # AST-based SQL generation
 │   └── models.py                   # Pydantic data models
 ├── frontend/
@@ -183,9 +215,16 @@ Conve-AI-Project-RelDB-Only/
 │   └── templates/
 │       ├── login.html              # Login interface
 │       └── chat.html               # Chat interface
-├── ARCHITECTURE.md                 # Complete technical documentation
-├── SETUP_GUIDE.md                  # Setup & deployment guide
-└── README.md                       # This file
+├── docs/
+│   ├── ANONYMIZATION_GUIDE.md      # Detailed anonymization guide
+│   └── supplementary/              # Additional references
+├── demos/
+│   └── demo_anonymization.py       # Interactive anonymization demo
+├── tests/
+│   └── test_anonymization.py       # Unit tests
+├── README.md                       # This file (quick start)
+├── ARCHITECTURE.md                 # Complete technical architecture
+└── SETUP_GUIDE.md                  # Full Windows setup guide
 ```
 
 ---

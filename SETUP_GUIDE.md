@@ -1,36 +1,64 @@
-# 🚀 SETUP GUIDE - CPG Conversational AI
+# 🚀 Complete Setup Guide - CPG Conversational AI with RBAC
 
-**Complete Setup & Deployment Guide for Windows**
+**From Zero to Running - Comprehensive Windows Setup Guide**
 
 ---
 
 ## 📋 Table of Contents
 
 1. [Prerequisites](#prerequisites)
-2. [Quick Start (5 Minutes)](#quick-start)
-3. [Detailed Setup](#detailed-setup)
-4. [Testing](#testing)
-5. [Troubleshooting](#troubleshooting)
-6. [Production Deployment](#production-deployment)
+2. [Quick Start (5 Minutes)](#quick-start-5-minutes)
+3. [Step-by-Step Setup](#step-by-step-setup)
+4. [Feature Configuration](#feature-configuration)
+5. [Testing the System](#testing-the-system)
+6. [Troubleshooting](#troubleshooting)
+7. [Production Deployment](#production-deployment)
 
 ---
 
 ## ✅ Prerequisites
 
-### **Required Software**
-
-| Software | Version | Download Link |
-|----------|---------|---------------|
-| **Python** | 3.10+ | https://www.python.org/downloads/ |
-| **Git** | Latest | https://git-scm.com/downloads |
-| **Web Browser** | Latest Chrome/Firefox | - |
-
 ### **System Requirements**
 
-- **OS:** Windows 10/11
-- **RAM:** 2GB minimum (4GB recommended)
-- **Disk:** 500MB free space
-- **Network:** Internet (for package installation)
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| **OS** | Windows 10 | Windows 11 |
+| **RAM** | 4GB | 8GB+ |
+| **Disk Space** | 1GB | 2GB+ |
+| **Python** | 3.10+ | 3.12+ |
+| **Internet** | Required for setup | - |
+
+### **Required Software**
+
+#### **1. Python 3.12+**
+- **Download**: https://www.python.org/downloads/
+- **Installation Tips**:
+  - ✅ **CHECK** "Add Python to PATH" during installation
+  - ✅ **CHECK** "Install pip"
+  - Click "Customize installation" → Check "Add Python to environment variables"
+
+**Verify Installation**:
+```bash
+python --version
+# Expected: Python 3.12.x
+
+pip --version
+# Expected: pip 24.x from C:\Users\...
+```
+
+#### **2. Git (Optional but Recommended)**
+- **Download**: https://git-scm.com/downloads
+- **Installation**: Use default settings
+- **Verify**:
+  ```bash
+  git --version
+  # Expected: git version 2.x.x
+  ```
+
+#### **3. Text Editor (Optional)**
+- **VS Code**: https://code.visualstudio.com/
+- **Notepad++**: https://notepad-plus-plus.org/
+- **Or use:** Windows Notepad (built-in)
 
 ---
 
@@ -38,664 +66,714 @@
 
 **For experienced users who want to get running immediately:**
 
+### **Windows PowerShell/Command Prompt**
+
 ```bash
-# 1. Clone repository
+# 1. Navigate to your projects folder
 cd D:\
+mkdir projects
+cd projects
+
+# 2. Clone repository
 git clone https://github.com/varunmundas-de-stack/Conve-AI-Project-RelDB-Only.git
 cd Conve-AI-Project-RelDB-Only
 
-# 2. Install dependencies
+# 3. Install dependencies (one command)
 pip install duckdb ollama pydantic pyyaml rich python-dateutil flask flask-login werkzeug bcrypt
 
-# 3. Create databases
+# 4. Setup databases
 python database/create_user_db.py
 python database/create_multi_schema_demo.py
 
-# 4. Start server
+# 5. Start server
 python frontend/app_with_auth.py
 
-# 5. Open browser
+# 6. Open browser and go to:
 # http://localhost:5000
 # Login: nestle_analyst / nestle123
 ```
 
-**Done!** 🎉
+**Done!** 🎉 Skip to [Testing the System](#testing-the-system)
 
 ---
 
-## 📦 Detailed Setup
+## 📦 Step-by-Step Setup
 
-### **Step 1: Install Python**
+### **Step 1: Prepare Your System**
 
-1. Download Python 3.12 from https://www.python.org/downloads/
-2. **IMPORTANT:** Check "Add Python to PATH" during installation
-3. Verify installation:
-   ```bash
-   python --version
-   # Should show: Python 3.12.x
-   ```
+#### **1.1 Open PowerShell or Command Prompt**
 
----
+**Option A: PowerShell (Recommended)**
+- Press `Win + X`
+- Select "Windows PowerShell" or "Terminal"
 
-### **Step 2: Clone Repository**
+**Option B: Command Prompt**
+- Press `Win + R`
+- Type `cmd` and press Enter
 
-**Option A: Using Git (Recommended)**
+#### **1.2 Check Python Installation**
+
 ```bash
-cd D:\
-git clone https://github.com/varunmundas-de-stack/Conve-AI-Project-RelDB-Only.git
-cd Conve-AI-Project-RelDB-Only
+python --version
 ```
 
-**Option B: Download ZIP**
-1. Go to: https://github.com/varunmundas-de-stack/Conve-AI-Project-RelDB-Only
-2. Click "Code" → "Download ZIP"
-3. Extract to `D:\Conve-AI-Project-RelDB-Only`
-4. Open PowerShell/CMD in that folder
+**Expected Output**: `Python 3.12.x` or `Python 3.10.x` or higher
+
+**If Python is not found**:
+1. Download from https://www.python.org/downloads/
+2. Run installer
+3. **CRITICAL**: Check "Add Python to PATH"
+4. Click "Install Now"
+5. Restart your terminal
 
 ---
 
-### **Step 3: Install Python Packages**
+### **Step 2: Download the Project**
 
-**Method 1: Individual Installation (Recommended)**
+#### **Option A: Using Git (Recommended)**
+
 ```bash
+# Navigate to where you want to install
+cd D:\
+mkdir projects
+cd projects
+
+# Clone the repository
+git clone https://github.com/varunmundas-de-stack/Conve-AI-Project-RelDB-Only.git
+
+# Enter the project folder
+cd Conve-AI-Project-RelDB-Only
+
+# Verify you're in the right place
+dir
+# You should see: database/, frontend/, semantic_layer/, etc.
+```
+
+#### **Option B: Download ZIP (If no Git)**
+
+1. Open browser: https://github.com/varunmundas-de-stack/Conve-AI-Project-RelDB-Only
+2. Click green **"Code"** button
+3. Click **"Download ZIP"**
+4. Extract ZIP to `D:\projects\Conve-AI-Project-RelDB-Only`
+5. Open PowerShell in that folder:
+   - Navigate to folder in File Explorer
+   - Hold `Shift` + Right-click in folder
+   - Select "Open PowerShell window here"
+
+---
+
+### **Step 3: Install Python Dependencies**
+
+#### **3.1 Core Dependencies**
+
+```bash
+# Install all required packages
 pip install duckdb ollama pydantic pyyaml rich python-dateutil flask flask-login werkzeug bcrypt
 ```
 
-**Expected Output:**
+**Expected Output**:
 ```
-Successfully installed duckdb-1.4.4 flask-3.1.2 flask-login-0.6.3
-bcrypt-5.0.0 werkzeug-3.1.5 ollama-0.6.1 pydantic-2.12.5 ...
-(Total: ~28 packages)
-```
-
-**Method 2: Using requirements.txt (Alternative)**
-```bash
-pip install -r requirements.txt
+Collecting duckdb
+  Downloading duckdb-x.x.x-cp312-...
+Successfully installed duckdb-x.x.x ollama-x.x.x ...
 ```
 
-**Verification:**
+#### **3.2 Verify Installation**
+
 ```bash
-pip list
-# Should show all installed packages
+python -c "import duckdb; import flask; import pydantic; print('All packages installed successfully!')"
+```
+
+**Expected Output**: `All packages installed successfully!`
+
+**If you get errors**, install packages individually:
+
+```bash
+pip install duckdb
+pip install ollama
+pip install pydantic
+pip install pyyaml
+pip install rich
+pip install python-dateutil
+pip install flask
+pip install flask-login
+pip install werkzeug
+pip install bcrypt
 ```
 
 ---
 
 ### **Step 4: Create Databases**
 
-#### **A. User Authentication Database**
+#### **4.1 Create User Authentication Database**
 
 ```bash
 python database/create_user_db.py
 ```
 
-**Expected Output:**
+**Expected Output**:
 ```
-Creating user database for RBAC...
-[OK] User database created successfully!
-
-======================================================================
-SAMPLE USERS CREATED
-======================================================================
-Username             Password        Client          Role
-======================================================================
-nestle_analyst       nestle123       nestle          analyst
-unilever_analyst     unilever123     unilever        analyst
-itc_analyst          itc123          itc             analyst
-======================================================================
-
-[OK] Database created at: D:\...\database\users.db
-[OK] File size: 32.00 KB
+Creating user authentication database...
+Created user: nestle_analyst (password: nestle123)
+Created user: unilever_analyst (password: unilever123)
+Created user: itc_analyst (password: itc123)
+User database created successfully: database/users.db
 ```
 
-**What it created:**
-- ✅ `database/users.db` (32 KB)
-- ✅ 3 users (one per client)
-- ✅ 3 client configurations
-- ✅ Audit log table
+**Verify**:
+```bash
+dir database\users.db
+# Should show: users.db with file size
+```
 
----
-
-#### **B. Multi-Tenant Analytics Database**
+#### **4.2 Create Multi-Tenant Analytics Database**
 
 ```bash
 python database/create_multi_schema_demo.py
 ```
 
-**Expected Output:**
+**Expected Output**:
 ```
-Creating multi-schema DuckDB database...
-
-[*] Creating schema: client_nestle
-[OK] Schema client_nestle created with sample data
-
-[*] Creating schema: client_unilever
-[OK] Schema client_unilever created with sample data
-
-[*] Creating schema: client_itc
-[OK] Schema client_itc created with sample data
-
-[OK] Multi-tenant database created at: D:\...\database\cpg_multi_tenant.duckdb
-[OK] File size: 9740.00 KB
-
-[OK] Setup complete! Each client has isolated data.
+Creating multi-tenant CPG database...
+Creating schema: client_nestle
+Creating schema: client_unilever
+Creating schema: client_itc
+Populating data...
+Database created successfully: database/cpg_multi_tenant.duckdb
 ```
 
-**What it created:**
-- ✅ `database/cpg_multi_tenant.duckdb` (~10 MB)
-- ✅ 3 isolated schemas (client_nestle, client_unilever, client_itc)
-- ✅ 6 tables per schema (1 fact + 5 dimensions)
-- ✅ 50 sample transactions per client (150 total)
+**Verify**:
+```bash
+dir database\cpg_multi_tenant.duckdb
+# Should show: cpg_multi_tenant.duckdb (~10-50 MB)
+```
 
 ---
 
-### **Step 5: Verify Setup**
+### **Step 5: Verify Project Structure**
 
-**Check files exist:**
 ```bash
-dir database\*.db
-dir database\*.duckdb
-```
+# Check that everything is in place
+dir
 
-**Expected:**
+# You should see:
+# - database/ (folder)
+# - frontend/ (folder)
+# - semantic_layer/ (folder)
+# - llm/ (folder)
+# - security/ (folder)
+# - query_engine/ (folder)
+# - README.md
+# - ARCHITECTURE.md
+# - SETUP_GUIDE.md (this file)
 ```
-users.db                    32 KB
-cpg_multi_tenant.duckdb     9.7 MB
-```
-
-**Check database contents:**
-```bash
-python -c "import sqlite3; conn = sqlite3.connect('database/users.db'); print('Users:', conn.execute('SELECT COUNT(*) FROM users').fetchone()[0]); conn.close()"
-```
-
-**Expected:** `Users: 3`
 
 ---
 
-### **Step 6: Start Flask Server**
+### **Step 6: Start the Application**
 
 ```bash
 python frontend/app_with_auth.py
 ```
 
-**Expected Output:**
+**Expected Output**:
 ```
-============================================================
-CPG Conversational AI Chatbot (RBAC Enabled)
-============================================================
-Starting Flask server...
-Open your browser and go to: http://localhost:5000
-Login with one of the sample users:
-  - nestle_analyst / nestle123
-  - unilever_analyst / unilever123
-  - itc_analyst / itc123
-Press Ctrl+C to stop the server
-============================================================
- * Running on http://0.0.0.0:5000
+ * Serving Flask app 'app_with_auth'
+ * Debug mode: on
+WARNING: This is a development server.
+ * Running on http://127.0.0.1:5000
+Press CTRL+C to quit
 ```
 
-**Leave this terminal open!**
+**🎉 Success!** The server is now running.
+
+**⚠️ Important**:
+- Keep this terminal window open
+- Do NOT close it while using the application
+- To stop the server: Press `Ctrl+C`
 
 ---
 
-### **Step 7: Access Web Interface**
+### **Step 7: Access the Application**
 
-1. Open **Chrome** or **Firefox**
-2. Navigate to: **http://localhost:5000**
-3. You should see the login screen
-
----
-
-## 🧪 Testing
-
-### **Test 1: Login & Basic Query**
-
-**Steps:**
-1. Login with: `nestle_analyst` / `nestle123`
-2. Should see:
-   - Header: "Nestle Analyst" at top
-   - Company: "Nestlé India"
-   - Role: "analyst" badge
-   - Logout button (top-right)
-3. Click suggestion chip: **"Show top 5 brands by sales"**
-4. Should see table with brands ending in "-nestle":
-   ```
-   Brand-B-nestle    377,845.26
-   Brand-D-nestle    364,520.18
-   Brand-A-nestle    352,110.45
-   ...
-   ```
-
-**✅ PASS if:** You see Nestle brands only
+1. **Open your web browser** (Chrome, Firefox, Edge)
+2. **Navigate to**: http://localhost:5000
+3. **You should see**: Login page
 
 ---
 
-### **Test 2: Schema Isolation**
+## 🔧 Feature Configuration
 
-**Steps:**
-1. Logout (click logout button)
-2. Login with: `unilever_analyst` / `unilever123`
-3. Click: **"Show top 5 brands by sales"**
-4. Should see DIFFERENT brands ending in "-unilever":
-   ```
-   Brand-A-unilever    425,680.90
-   Brand-C-unilever    398,520.45
-   Brand-B-unilever    385,210.30
-   ...
-   ```
+### **Enable Schema Anonymization (Recommended for Production)**
 
-**✅ PASS if:** Unilever brands are DIFFERENT from Nestle brands
+Schema anonymization protects your database metadata when using external LLMs like Claude API.
 
----
+#### **Option 1: Environment Variable**
 
-### **Test 3: Permission Denied (Cross-Client)**
+**PowerShell**:
+```powershell
+$env:ANONYMIZE_SCHEMA="true"
+python frontend/app_with_auth.py
+```
 
-**Steps:**
-1. Login as: `nestle_analyst`
-2. Type: **"Show Unilever top brands"**
-3. Should see permission denied message:
-   ```
-   🚫 Permission Denied
-   You do not have access to data from: Unilever
-   ```
+**Command Prompt**:
+```cmd
+set ANONYMIZE_SCHEMA=true
+python frontend/app_with_auth.py
+```
 
-**✅ PASS if:** Permission denied message appears
+#### **Option 2: Create .env File**
 
----
-
-### **Test 4: Out-of-Scope Question**
-
-**Steps:**
-1. Type: **"What is the weather today?"**
-2. Should see out-of-scope message:
-   ```
-   ⚠️ Out of Scope Question
-   This chatbot is specialized for CPG sales analytics only.
-   ```
-
-**✅ PASS if:** Out-of-scope message appears
-
----
-
-### **Test 5: Metadata Question Blocking**
-
-**Steps:**
-1. Type: **"What tables are in the database?"**
-2. Should see metadata blocking message:
-   ```
-   ❌ Out of Scope Question
-   This chatbot is for analytics queries only,
-   not database metadata exploration.
-   ```
-
-**✅ PASS if:** Metadata message appears
-
----
-
-### **Test 6: All Query Types**
-
-**Try these queries (as any user):**
-
-| Query | Expected Result |
-|-------|----------------|
-| `Show top 5 brands by sales` | Table with 5 brands |
-| `Weekly sales trend for last 6 weeks` | Table with 6 weeks |
-| `Total sales this month` | Single number |
-| `Compare sales by channel` | Table with channels |
-| `Top 10 SKUs by volume` | Table with 10 SKUs |
-
-**✅ PASS if:** All queries return results
-
----
-
-### **Test 7: Session Expiry**
-
-**Steps:**
-1. Login and use app
-2. Close browser completely
-3. Reopen browser
-4. Go to: http://localhost:5000
-5. Should show login screen (not auto-login)
-
-**✅ PASS if:** Login screen appears
-
----
-
-## 🔧 Troubleshooting
-
-### **Issue 1: "python: command not found"**
-
-**Cause:** Python not in PATH
-
-**Fix:**
+Create file `.env` in project root:
 ```bash
-# Find Python installation
-where python
-
-# If not found, reinstall Python with "Add to PATH" checked
+ANONYMIZE_SCHEMA=true
 ```
+
+Then start the application normally.
+
+#### **What Anonymization Does**:
+- ✅ Protects metric names: `secondary_sales_value` → `value_metric_001`
+- ✅ Protects dimension names: `brand_name` → `product_dimension_001`
+- ✅ External LLM sees only generic names
+- ✅ Real schema never exposed to external services
+
+**See**: [ARCHITECTURE.md - Schema Anonymization](ARCHITECTURE.md#-schema-anonymization-security-enhancement)
 
 ---
 
-### **Issue 2: "Module not found" errors**
+### **Use External LLM (Claude API)**
 
-**Cause:** Packages not installed
+By default, the system uses local Ollama. To use Claude API:
 
-**Fix:**
+#### **Step 1: Get API Key**
+1. Sign up at https://console.anthropic.com/
+2. Create an API key
+3. Copy the key (starts with `sk-ant-...`)
+
+#### **Step 2: Set Environment Variables**
+
+**PowerShell**:
+```powershell
+$env:USE_CLAUDE_API="true"
+$env:ANTHROPIC_API_KEY="sk-ant-your-key-here"
+$env:ANONYMIZE_SCHEMA="true"
+python frontend/app_with_auth.py
+```
+
+**Command Prompt**:
+```cmd
+set USE_CLAUDE_API=true
+set ANTHROPIC_API_KEY=sk-ant-your-key-here
+set ANONYMIZE_SCHEMA=true
+python frontend/app_with_auth.py
+```
+
+**⚠️ Security**: Always enable `ANONYMIZE_SCHEMA=true` when using external LLMs!
+
+---
+
+## 🧪 Testing the System
+
+### **Test 1: Login and Authentication**
+
+1. Open browser: http://localhost:5000
+2. **Login as Nestlé analyst**:
+   - Username: `nestle_analyst`
+   - Password: `nestle123`
+3. **Expected**: Redirect to chat interface with "Welcome, nestle_analyst (Nestlé India)"
+
+### **Test 2: Run Sample Queries**
+
+Try these queries (one at a time):
+
+#### **Query 1: Simple Aggregation**
+```
+Show total sales value
+```
+**Expected**: Single number showing total sales
+
+#### **Query 2: Grouping by Brand**
+```
+Show sales by brand
+```
+**Expected**: Table with brand names and sales values
+
+#### **Query 3: Top N Ranking**
+```
+Show top 5 brands by sales value
+```
+**Expected**: Table with 5 brands, sorted by sales (highest first)
+
+#### **Query 4: Time-based Query**
+```
+Show sales by week for last 4 weeks
+```
+**Expected**: Table with week numbers and sales values
+
+#### **Query 5: Multi-dimensional**
+```
+Show sales by brand and state
+```
+**Expected**: Table with brand, state, and sales columns
+
+### **Test 3: Multi-Client Isolation**
+
+1. **Logout** (click Logout button)
+2. **Login as ITC analyst**:
+   - Username: `itc_analyst`
+   - Password: `itc123`
+3. **Try same query**: "Show sales by brand"
+4. **Expected**: Different data (ITC's data, not Nestlé's)
+
+### **Test 4: Schema Isolation Verification**
+
+**As Nestlé user**, try:
+```
+Show sales by brand
+```
+**Result**: Sees Nestlé brands (Maggi, KitKat, etc.)
+
+**As ITC user**, try:
+```
+Show sales by brand
+```
+**Result**: Sees ITC brands (different from Nestlé)
+
+**Verification**: No cross-client data leakage! ✅
+
+---
+
+## 🔍 Troubleshooting
+
+### **Issue 1: "Python not recognized"**
+
+**Error**:
+```
+'python' is not recognized as an internal or external command
+```
+
+**Solution**:
+1. Reinstall Python
+2. **CHECK** "Add Python to PATH" during installation
+3. Restart terminal
+4. Try: `py` instead of `python` (Windows alias)
+
+---
+
+### **Issue 2: "ModuleNotFoundError: No module named 'xyz'"**
+
+**Error**:
+```
+ModuleNotFoundError: No module named 'duckdb'
+```
+
+**Solution**:
 ```bash
-# Reinstall all packages
-pip install --force-reinstall duckdb flask flask-login werkzeug bcrypt ollama pydantic pyyaml rich python-dateutil
+pip install duckdb
+# Or install all dependencies again:
+pip install duckdb ollama pydantic pyyaml rich python-dateutil flask flask-login werkzeug bcrypt
 ```
 
 ---
 
-### **Issue 3: "Address already in use (Port 5000)"**
+### **Issue 3: "Address already in use" (Port 5000 occupied)**
 
-**Cause:** Another app using port 5000
+**Error**:
+```
+OSError: [Errno 48] Address already in use
+```
 
-**Fix Option A - Kill process:**
+**Solution**:
+
+**Option A: Change Port**
+Edit `frontend/app_with_auth.py`, line at bottom:
+```python
+# Change from:
+app.run(debug=True, port=5000)
+# To:
+app.run(debug=True, port=5001)
+```
+
+Then access: http://localhost:5001
+
+**Option B: Kill Process on Port 5000**
 ```bash
 # Find process
 netstat -ano | findstr :5000
 
-# Kill process (replace PID)
+# Kill process (replace PID with actual process ID)
 taskkill /PID <PID> /F
 ```
 
-**Fix Option B - Use different port:**
-```python
-# Edit frontend/app_with_auth.py, last line:
-app.run(debug=True, host='0.0.0.0', port=5001)  # Change to 5001
+---
+
+### **Issue 4: Database File Not Found**
+
+**Error**:
+```
+FileNotFoundError: database/users.db not found
+```
+
+**Solution**:
+```bash
+# Recreate databases
+python database/create_user_db.py
+python database/create_multi_schema_demo.py
+
+# Verify files exist
+dir database\users.db
+dir database\cpg_multi_tenant.duckdb
 ```
 
 ---
 
-### **Issue 4: "undefined" error in chat**
+### **Issue 5: Login Fails / Wrong Password**
 
-**Cause:** Server error not displayed properly
+**Default Credentials**:
+| Username | Password | Client |
+|----------|----------|--------|
+| `nestle_analyst` | `nestle123` | Nestlé India |
+| `unilever_analyst` | `unilever123` | Hindustan Unilever |
+| `itc_analyst` | `itc123` | ITC Limited |
 
-**Fix:**
+**To reset passwords**:
 ```bash
-# Check server terminal for Python errors
-# Press F12 in browser → Console tab → Check for JavaScript errors
-```
-
-**Common causes:**
-- Database file missing
-- YAML config file missing
-- Python package import error
-
----
-
-### **Issue 5: Shows old login after restart**
-
-**Cause:** Browser session cookie persists
-
-**Fix:**
-```bash
-# Clear browser cookies
-# Chrome: Ctrl + Shift + Delete → Clear cookies
-
-# OR use Incognito mode
-# Chrome: Ctrl + Shift + N
-```
-
----
-
-### **Issue 6: "Cannot find table" SQL errors**
-
-**Cause:** Database schemas not created properly
-
-**Fix:**
-```bash
-# Delete old databases
+# Delete and recreate user database
 del database\users.db
-del database\cpg_multi_tenant.duckdb
-
-# Recreate
-python database\create_user_db.py
-python database\create_multi_schema_demo.py
+python database/create_user_db.py
 ```
 
 ---
 
-### **Issue 7: Slow performance**
+### **Issue 6: Ollama Not Installed (If Using Local LLM)**
 
-**Checks:**
-```bash
-# Check file sizes
-dir database\*.db*
-
-# Should be:
-# users.db: 32 KB
-# cpg_multi_tenant.duckdb: ~10 MB
-
-# If much larger, regenerate databases
+**Error**:
 ```
+Connection refused: Ollama server not running
+```
+
+**Solution**:
+
+**Option A: Install Ollama**
+1. Download: https://ollama.ai/download
+2. Install for Windows
+3. Start Ollama
+4. Pull model: `ollama pull llama3.2:3b`
+
+**Option B: Use Claude API Instead**
+```bash
+set USE_CLAUDE_API=true
+set ANTHROPIC_API_KEY=your-key-here
+python frontend/app_with_auth.py
+```
+
+---
+
+### **Issue 7: Browser Shows "Connection Refused"**
+
+**Checklist**:
+1. ✅ Is the Flask server running? (Check terminal)
+2. ✅ Did you see "Running on http://127.0.0.1:5000"?
+3. ✅ Are you using the correct URL? http://localhost:5000
+4. ✅ Try: http://127.0.0.1:5000 instead
+
+---
+
+### **Issue 8: Slow Query Performance**
+
+**Possible Causes**:
+1. Large dataset in database
+2. External LLM API latency
+3. No indexes on database
+
+**Solutions**:
+- Use local Ollama instead of external LLM
+- Limit query results: "Show top 10 brands"
+- Check internet connection (for external LLM)
+
+---
+
+### **Issue 9: Windows Firewall Blocking**
+
+**Symptom**: Can't access http://localhost:5000
+
+**Solution**:
+1. Windows Defender Firewall → Allow an app
+2. Find Python → Check "Private" and "Public"
+3. Click OK
+4. Restart Flask server
 
 ---
 
 ## 🚀 Production Deployment
 
-### **Option 1: Windows Server with Gunicorn**
+### **1. Security Checklist**
 
-**Not Recommended** - Gunicorn doesn't support Windows
+Before deploying to production:
 
----
+- [ ] Change default passwords in `database/create_user_db.py`
+- [ ] Set strong `SECRET_KEY` in Flask app
+- [ ] Enable HTTPS/TLS
+- [ ] Enable `ANONYMIZE_SCHEMA=true`
+- [ ] Use production WSGI server (Waitress/Gunicorn)
+- [ ] Set up database backups
+- [ ] Enable audit logging
+- [ ] Configure firewalls
+- [ ] Use environment variables for secrets (not hardcoded)
 
-### **Option 2: Windows Server with Waitress**
+### **2. Use Production Server (Waitress)**
 
-**Install Waitress:**
+**Install Waitress**:
 ```bash
 pip install waitress
 ```
 
-**Create production script** `production_server.py`:
+**Create production startup script** `start_production.py`:
 ```python
 from waitress import serve
 from frontend.app_with_auth import app
 
-print("Starting production server on port 8080...")
+# Production configuration
+app.config['DEBUG'] = False
+app.config['SECRET_KEY'] = 'change-this-to-random-secret-key'
+
+# Serve on all interfaces, port 8080
 serve(app, host='0.0.0.0', port=8080, threads=4)
 ```
 
-**Run:**
+**Start production server**:
 ```bash
-python production_server.py
+python start_production.py
 ```
 
----
+### **3. Environment Variables for Production**
 
-### **Option 3: Linux Server with Gunicorn + NGINX**
-
-**Install:**
+Create `.env` file:
 ```bash
-pip install gunicorn
+# Security
+SECRET_KEY=your-super-secret-key-here-change-this
+FLASK_ENV=production
+DEBUG=False
 
-sudo apt install nginx
+# Anonymization (required for external LLM)
+ANONYMIZE_SCHEMA=true
+
+# LLM Configuration
+USE_CLAUDE_API=true
+ANTHROPIC_API_KEY=sk-ant-your-key-here
+
+# Database
+DATABASE_PATH=database/cpg_multi_tenant.duckdb
+USER_DB_PATH=database/users.db
+
+# Server
+HOST=0.0.0.0
+PORT=8080
 ```
 
-**Gunicorn systemd service** `/etc/systemd/system/cpg-chatbot.service`:
-```ini
-[Unit]
-Description=CPG Chatbot
-After=network.target
+### **4. Backup Strategy**
 
-[Service]
-User=www-data
-WorkingDirectory=/opt/cpg-chatbot
-ExecStart=/usr/bin/gunicorn -w 4 -b 127.0.0.1:5000 frontend.app_with_auth:app
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-**NGINX config** `/etc/nginx/sites-available/cpg-chatbot`:
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-
-    location / {
-        proxy_pass http://127.0.0.1:5000;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
-**Start services:**
+**Backup databases**:
 ```bash
-sudo systemctl start cpg-chatbot
-sudo systemctl enable cpg-chatbot
-sudo systemctl restart nginx
+# Create backup folder
+mkdir backups
+
+# Backup daily
+xcopy database\*.db backups\ /Y
+xcopy database\*.duckdb backups\ /Y
 ```
 
----
+**Automated backup (Windows Task Scheduler)**:
+1. Create `backup.bat`:
+   ```batch
+   @echo off
+   xcopy D:\projects\Conve-AI-Project-RelDB-Only\database\*.db D:\backups\%date:~-4,4%%date:~-10,2%%date:~-7,2%\ /Y
+   xcopy D:\projects\Conve-AI-Project-RelDB-Only\database\*.duckdb D:\backups\%date:~-4,4%%date:~-10,2%%date:~-7,2%\ /Y
+   ```
+2. Schedule in Task Scheduler to run daily
 
-### **Option 4: Docker Container**
+### **5. Monitoring**
 
-**Create** `Dockerfile`:
-```dockerfile
-FROM python:3.12-slim
-
-WORKDIR /app
-COPY . /app
-
-RUN pip install --no-cache-dir duckdb flask flask-login werkzeug bcrypt ollama pydantic pyyaml rich python-dateutil
-
-# Create databases
-RUN python database/create_user_db.py && \
-    python database/create_multi_schema_demo.py
-
-EXPOSE 5000
-
-CMD ["python", "frontend/app_with_auth.py"]
-```
-
-**Build and run:**
-```bash
-docker build -t cpg-chatbot .
-docker run -d -p 5000:5000 cpg-chatbot
-```
-
----
-
-## 📊 User Management
-
-### **Add New User**
-
-```bash
-python database/add_user.py
-```
-
-Follow prompts to add user.
-
----
-
-### **Reset User Password**
-
+**Enable logging** in Flask app:
 ```python
-# reset_password.py
-import sqlite3
-import bcrypt
-
-username = "nestle_analyst"
-new_password = "newpassword123"
-
-# Hash password
-salt = bcrypt.gensalt()
-password_hash = bcrypt.hashpw(new_password.encode('utf-8'), salt).decode('utf-8')
-
-# Update database
-conn = sqlite3.connect('database/users.db')
-conn.execute('UPDATE users SET password_hash = ? WHERE username = ?',
-             (password_hash, username))
-conn.commit()
-conn.close()
-
-print(f"Password reset for {username}")
+import logging
+logging.basicConfig(
+    filename='app.log',
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 ```
-
----
-
-### **Add New Client**
-
-**1. Create YAML config:**
-```bash
-cp semantic_layer/configs/client_nestle.yaml semantic_layer/configs/client_newclient.yaml
-```
-
-**2. Edit config:**
-- Change `client.id` to `newclient`
-- Change `client.name` to "New Client Name"
-- Change `database.schema` to `client_newclient`
-
-**3. Create schema in DuckDB:**
-```python
-import duckdb
-conn = duckdb.connect('database/cpg_multi_tenant.duckdb')
-conn.execute('CREATE SCHEMA client_newclient')
-# Create tables...
-conn.close()
-```
-
-**4. Add client record to users.db:**
-```python
-import sqlite3
-conn = sqlite3.connect('database/users.db')
-conn.execute('''
-    INSERT INTO clients (client_id, client_name, database_path, config_path, schema_name)
-    VALUES (?, ?, ?, ?, ?)
-''', ('newclient', 'New Client Name', 'database/cpg_multi_tenant.duckdb',
-      'semantic_layer/configs/client_newclient.yaml', 'client_newclient'))
-conn.commit()
-conn.close()
-```
-
-**5. Add user for new client**
-
----
-
-## 🎯 Next Steps
-
-### **After Setup:**
-
-1. ✅ **Customize YAML configs** for your metrics
-2. ✅ **Load real data** into database
-3. ✅ **Change Flask secret key** in production
-4. ✅ **Set up HTTPS** for production
-5. ✅ **Configure backup** for database files
-6. ✅ **Set up monitoring** (logs, alerts)
 
 ---
 
 ## 📚 Additional Resources
 
-- **Architecture Details:** [ARCHITECTURE.md](ARCHITECTURE.md)
-- **Quick Reference:** [README.md](README.md)
-- **GitHub Repository:** https://github.com/varunmundas-de-stack/Conve-AI-Project-RelDB-Only
+### **Documentation**
+
+| Document | Purpose |
+|----------|---------|
+| [README.md](README.md) | Quick overview and features |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Complete technical architecture |
+| [SETUP_GUIDE.md](SETUP_GUIDE.md) | This file - setup instructions |
+
+### **Supplementary Documentation** (in `docs/` folder)
+
+| Document | Purpose |
+|----------|---------|
+| [docs/ANONYMIZATION_GUIDE.md](docs/ANONYMIZATION_GUIDE.md) | Complete anonymization guide |
+| [docs/supplementary/](docs/supplementary/) | Additional examples and references |
+
+### **Key Features**
+
+- ✅ Multi-tenant RBAC with complete data isolation
+- ✅ Schema anonymization for external LLM protection
+- ✅ AST-based SQL generation (injection-proof)
+- ✅ Natural language to SQL conversion
+- ✅ Audit trail for all queries
+
+### **Getting Help**
+
+1. Check [Troubleshooting](#troubleshooting) section above
+2. Review [ARCHITECTURE.md](ARCHITECTURE.md) for technical details
+3. Check logs: `app.log` (if enabled)
+4. GitHub Issues: https://github.com/varunmundas-de-stack/Conve-AI-Project-RelDB-Only/issues
 
 ---
 
-## ✅ Setup Checklist
+## ✅ Quick Reference
 
-Before going live, verify:
+### **Start Application**
+```bash
+cd D:\projects\Conve-AI-Project-RelDB-Only
+python frontend/app_with_auth.py
+```
 
-- [ ] Python 3.10+ installed
-- [ ] All packages installed (28 packages)
-- [ ] Database files created (users.db + cpg_multi_tenant.duckdb)
-- [ ] Flask server starts without errors
-- [ ] Can login with all 3 users
-- [ ] Schema isolation working (different data per client)
-- [ ] Permission denied for cross-client queries
-- [ ] Out-of-scope questions blocked
-- [ ] Session expires on browser close
-- [ ] Audit log recording queries
+### **Access Application**
+```
+http://localhost:5000
+```
 
-**If all checked:** Ready for use! 🎉
+### **Default Users**
+- `nestle_analyst` / `nestle123`
+- `unilever_analyst` / `unilever123`
+- `itc_analyst` / `itc123`
+
+### **Stop Application**
+Press `Ctrl+C` in terminal
+
+### **Enable Anonymization**
+```bash
+set ANONYMIZE_SCHEMA=true
+```
+
+### **Use External LLM**
+```bash
+set USE_CLAUDE_API=true
+set ANTHROPIC_API_KEY=your-key
+```
 
 ---
 
-**Need help? Check [ARCHITECTURE.md](ARCHITECTURE.md) for system details.**
+**🎉 You're all set! The system is ready to use.**
+
+For technical architecture details, see [ARCHITECTURE.md](ARCHITECTURE.md)

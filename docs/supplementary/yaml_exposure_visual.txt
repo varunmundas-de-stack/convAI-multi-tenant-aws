@@ -1,0 +1,136 @@
+================================================================================
+                    YAML EXPOSURE: BEFORE vs AFTER
+================================================================================
+
+YAML FILE (client_nestle.yaml) - UNCHANGED IN BOTH CASES
+┌─────────────────────────────────────────────────────────────────────────┐
+│ metrics:                                                                │
+│   secondary_sales_value:                                                │
+│     description: "Net invoiced value to retailers"                      │
+│     sql: "SUM(net_value)"                  ← NEVER sent to LLM         │
+│     table: "fact_secondary_sales"          ← NEVER sent to LLM         │
+│     aggregation: "sum"                                                  │
+│                                                                         │
+│ dimensions:                                                             │
+│   product:                                                              │
+│     table: "dim_product"                   ← NEVER sent to LLM         │
+│     levels:                                                             │
+│       - name: "brand_name"                                              │
+│         column: "brand_name"               ← NEVER sent to LLM         │
+└─────────────────────────────────────────────────────────────────────────┘
+
+================================================================================
+                           BEFORE ANONYMIZATION
+================================================================================
+
+YAML → Load → Extract → Send to LLM
+                           ↓
+                    ┌──────────────────────────────────────┐
+                    │   SENT TO EXTERNAL LLM ❌            │
+                    │                                      │
+                    │   Metric Names:                      │
+                    │   - secondary_sales_value            │
+                    │   - margin_amount                    │
+                    │   - distributor_name                 │
+                    │                                      │
+                    │   Descriptions:                      │
+                    │   - "Net invoiced value"             │
+                    │   - "Total margin earned"            │
+                    │                                      │
+                    │   ⚠️  RISK: Real schema exposed!    │
+                    └──────────────────────────────────────┘
+
+================================================================================
+                            AFTER ANONYMIZATION
+================================================================================
+
+YAML → Load → Extract → ANONYMIZE → Send to LLM
+                            ↓
+                  ┌─────────────────────────────────────┐
+                  │  ANONYMIZATION LAYER (Local)        │
+                  │                                     │
+                  │  Mapping (stored locally):          │
+                  │  secondary_sales_value              │
+                  │    → value_metric_001               │
+                  │  margin_amount                      │
+                  │    → value_metric_002               │
+                  │  brand_name                         │
+                  │    → product_dimension_001          │
+                  └─────────────────────────────────────┘
+                            ↓
+                  ┌─────────────────────────────────────┐
+                  │   SENT TO EXTERNAL LLM ✅           │
+                  │                                     │
+                  │   Anonymous Metric Names:           │
+                  │   - value_metric_001                │
+                  │   - value_metric_002                │
+                  │   - customer_dimension_001          │
+                  │                                     │
+                  │   Generic Descriptions:             │
+                  │   - "Monetary value measurement"    │
+                  │   - "Monetary value measurement"    │
+                  │                                     │
+                  │   ✅ SAFE: Generic names only!      │
+                  └─────────────────────────────────────┘
+                            ↓
+                  LLM returns: {"metric": "value_metric_001"}
+                            ↓
+                  ┌─────────────────────────────────────┐
+                  │  DE-ANONYMIZATION (Local)           │
+                  │                                     │
+                  │  value_metric_001                   │
+                  │    → secondary_sales_value          │
+                  └─────────────────────────────────────┘
+                            ↓
+                  ┌─────────────────────────────────────┐
+                  │  SQL GENERATION (Local)             │
+                  │                                     │
+                  │  SELECT SUM(net_value)              │
+                  │  FROM fact_secondary_sales          │
+                  │                                     │
+                  │  ✅ Real schema used locally!       │
+                  └─────────────────────────────────────┘
+
+================================================================================
+                              KEY DIFFERENCES
+================================================================================
+
+┌──────────────────────┬─────────────────────────┬─────────────────────────┐
+│ Component            │ BEFORE (No Anon)        │ AFTER (With Anon)       │
+├──────────────────────┼─────────────────────────┼─────────────────────────┤
+│ YAML files           │ Unchanged               │ Unchanged               │
+├──────────────────────┼─────────────────────────┼─────────────────────────┤
+│ Sent to LLM:         │                         │                         │
+│   Metric names       │ secondary_sales_value   │ value_metric_001        │
+│   Descriptions       │ "Net invoiced value"    │ "Monetary value"        │
+│   Dimension names    │ brand_name              │ product_dimension_001   │
+├──────────────────────┼─────────────────────────┼─────────────────────────┤
+│ Never sent to LLM:   │                         │                         │
+│   SQL expressions    │ SUM(net_value) ✅       │ SUM(net_value) ✅       │
+│   Table names        │ fact_secondary_sales ✅ │ fact_secondary_sales ✅ │
+│   Column names       │ net_value ✅            │ net_value ✅            │
+├──────────────────────┼─────────────────────────┼─────────────────────────┤
+│ Security Risk        │ Medium ⚠️               │ Low ✅                  │
+│ IP Exposure          │ Yes ⚠️                  │ No ✅                   │
+│ Schema Protected     │ No ❌                   │ Yes ✅                  │
+└──────────────────────┴─────────────────────────┴─────────────────────────┘
+
+================================================================================
+                               SUMMARY
+================================================================================
+
+WHAT CHANGED:
+  ✓ Added anonymization layer between YAML and LLM
+  ✓ Real names converted to generic names before sending
+  ✓ De-anonymization happens locally after LLM responds
+
+WHAT DIDN'T CHANGE:
+  ✓ YAML files structure - exactly the same
+  ✓ SQL/table/column names - never were sent, still aren't
+  ✓ Local query processing - same as before
+
+SECURITY IMPROVEMENT:
+  ✓ BEFORE: External LLM sees "secondary_sales_value", "margin_amount" ❌
+  ✓ AFTER:  External LLM sees "value_metric_001", "value_metric_002" ✅
+
+Enable with: export ANONYMIZE_SCHEMA=true

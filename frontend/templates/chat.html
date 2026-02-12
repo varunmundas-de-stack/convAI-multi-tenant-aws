@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CPG Analytics Chatbot</title>
+
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
     <style>
         * {
             margin: 0;
@@ -134,6 +138,10 @@
             padding: 12px 18px;
             border-radius: 18px;
             word-wrap: break-word;
+        }
+
+        .message.assistant .message-content {
+            max-width: 85%;  /* Wider for charts and tables */
         }
 
         .message.user .message-content {
@@ -301,6 +309,23 @@
             background: #f8f9fa;
         }
 
+        .clarification-option {
+            background: white;
+            margin: 8px 0;
+            padding: 12px 15px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .clarification-option:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+            background: #f8f9fa;
+        }
+
         .suggestions-box .hint {
             margin-top: 15px;
             padding: 10px;
@@ -324,6 +349,43 @@
             margin-top: 8px;
             padding-top: 8px;
             border-top: 1px solid #eee;
+        }
+
+        /* Chart Visualization Styles */
+        .chart-container {
+            margin: 15px 0;
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .chart-canvas {
+            max-height: 400px;
+        }
+
+        .natural-summary {
+            font-size: 15px;
+            line-height: 1.6;
+            padding: 12px;
+            background: #f0f7ff;
+            border-left: 4px solid #667eea;
+            border-radius: 4px;
+            margin-bottom: 15px;
+        }
+
+        .natural-summary strong {
+            color: #667eea;
+        }
+
+        .metric-highlight {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            margin: 0 2px;
         }
 
         .suggestions {
@@ -591,8 +653,20 @@
                 console.log('Response data:', data);
 
                 if (data.success) {
-                    // Add assistant response
-                    addMessage('assistant', data.response, data.metadata);
+                    // Check if we have structured data for visualization
+                    if (data.raw_data && data.raw_data.length > 0 && data.query_type !== 'diagnostic') {
+                        // Generate natural language summary
+                        const summary = generateSummary(data.raw_data, question);
+
+                        // Create enhanced response with summary, chart, and table
+                        const enhancedResponse = summary + data.response;
+
+                        // Add assistant response with chart rendering
+                        addMessage('assistant', enhancedResponse, data.metadata, data.raw_data);
+                    } else {
+                        // Standard response (diagnostic or no data)
+                        addMessage('assistant', data.response, data.metadata);
+                    }
                 } else {
                     // Add error message - handle missing error field
                     const errorMsg = data.error || data.response || JSON.stringify(data) || 'Unknown error occurred';
@@ -611,7 +685,7 @@
             });
         }
 
-        function addMessage(sender, content, metadata = null) {
+        function addMessage(sender, content, metadata = null, rawData = null) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${sender}`;
 
@@ -622,6 +696,19 @@
                 contentDiv.textContent = content;
             } else {
                 contentDiv.innerHTML = content;
+
+                // Render chart if we have raw data
+                if (rawData && rawData.length > 0) {
+                    // Only render chart for multi-row results with numeric data
+                    const columns = Object.keys(rawData[0]);
+                    if (columns.length >= 2 && rawData.length >= 2) {
+                        // Check if second column has numeric values
+                        const secondColValue = rawData[0][columns[1]];
+                        if (typeof secondColValue === 'number' || !isNaN(parseFloat(secondColValue))) {
+                            renderChart(contentDiv, rawData);
+                        }
+                    }
+                }
             }
 
             // Add metadata if available
@@ -693,6 +780,176 @@
             if (confirm('Are you sure you want to logout?')) {
                 window.location.href = '/logout';
             }
+        }
+
+        // Handle clicking on clarification options
+        function selectClarification(refinedQuery) {
+            chatInput.value = refinedQuery;
+            sendMessage();
+        }
+
+        // Color palette for varied visualizations
+        const colorPalettes = [
+            { bg: 'rgba(102, 126, 234, 0.6)', border: 'rgba(102, 126, 234, 1)', name: 'Purple' },
+            { bg: 'rgba(54, 162, 235, 0.6)', border: 'rgba(54, 162, 235, 1)', name: 'Blue' },
+            { bg: 'rgba(75, 192, 192, 0.6)', border: 'rgba(75, 192, 192, 1)', name: 'Teal' },
+            { bg: 'rgba(255, 99, 132, 0.6)', border: 'rgba(255, 99, 132, 1)', name: 'Red' },
+            { bg: 'rgba(255, 159, 64, 0.6)', border: 'rgba(255, 159, 64, 1)', name: 'Orange' },
+            { bg: 'rgba(153, 102, 255, 0.6)', border: 'rgba(153, 102, 255, 1)', name: 'Violet' },
+            { bg: 'rgba(255, 206, 86, 0.6)', border: 'rgba(255, 206, 86, 1)', name: 'Yellow' },
+            { bg: 'rgba(76, 175, 80, 0.6)', border: 'rgba(76, 175, 80, 1)', name: 'Green' },
+        ];
+
+        // Generate multiple colors for bar charts (each bar different color)
+        function generateBarColors(count) {
+            const bgColors = [];
+            const borderColors = [];
+
+            for (let i = 0; i < count; i++) {
+                const palette = colorPalettes[i % colorPalettes.length];
+                bgColors.push(palette.bg);
+                borderColors.push(palette.border);
+            }
+
+            return { bgColors, borderColors };
+        }
+
+        // Get random color palette for line/single color charts
+        function getRandomPalette() {
+            return colorPalettes[Math.floor(Math.random() * colorPalettes.length)];
+        }
+
+        // Chart rendering function
+        function renderChart(container, data, chartType = 'auto') {
+            if (!data || data.length === 0) return;
+
+            // Create canvas element
+            const canvas = document.createElement('canvas');
+            canvas.className = 'chart-canvas';
+            const chartDiv = document.createElement('div');
+            chartDiv.className = 'chart-container';
+            chartDiv.appendChild(canvas);
+            container.appendChild(chartDiv);
+
+            // Detect chart type based on data structure
+            const columns = Object.keys(data[0]);
+            const labelColumn = columns[0];
+            const valueColumn = columns[1];
+
+            // Extract labels and values
+            const labels = data.map(row => row[labelColumn]);
+            const values = data.map(row => parseFloat(row[valueColumn]) || 0);
+
+            // Auto-detect chart type
+            let finalChartType = chartType;
+            if (chartType === 'auto') {
+                if (data.length <= 10) {
+                    finalChartType = 'bar';
+                } else if (data.length > 10 && data.length <= 30) {
+                    finalChartType = 'line';
+                } else {
+                    finalChartType = 'line';
+                }
+            }
+
+            // Generate colors based on chart type
+            let backgroundColor, borderColor;
+            if (finalChartType === 'bar') {
+                // Different color for each bar
+                const colors = generateBarColors(data.length);
+                backgroundColor = colors.bgColors;
+                borderColor = colors.borderColors;
+            } else {
+                // Random single color for line charts
+                const palette = getRandomPalette();
+                backgroundColor = palette.bg.replace('0.6', '0.2'); // More transparent for line fill
+                borderColor = palette.border;
+            }
+
+            // Create chart
+            new Chart(canvas, {
+                type: finalChartType,
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: valueColumn,
+                        data: values,
+                        backgroundColor: backgroundColor,
+                        borderColor: borderColor,
+                        borderWidth: 2,
+                        fill: finalChartType === 'line'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: `${valueColumn} by ${labelColumn}`,
+                            font: {
+                                size: 14
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Generate natural language summary from data
+        function generateSummary(data, question) {
+            if (!data || data.length === 0) {
+                return '<p class="natural-summary">No data found for your query.</p>';
+            }
+
+            const columns = Object.keys(data[0]);
+            const firstRow = data[0];
+
+            // Single row result (aggregation)
+            if (data.length === 1) {
+                const metric = columns[0];
+                const value = firstRow[metric];
+                const formattedValue = typeof value === 'number' ? value.toLocaleString('en-US', {maximumFractionDigits: 2}) : value;
+
+                return `<p class="natural-summary">The <strong>${metric}</strong> is <span class="metric-highlight">${formattedValue}</span></p>`;
+            }
+
+            // Multi-row result (ranking, trend, etc.)
+            const labelColumn = columns[0];
+            const valueColumn = columns[1];
+            const topItem = data[0];
+            const totalItems = data.length;
+
+            let summary = '<p class="natural-summary">';
+
+            // Determine summary based on data characteristics
+            if (question.toLowerCase().includes('top') || question.toLowerCase().includes('rank')) {
+                const topValue = typeof topItem[valueColumn] === 'number'
+                    ? topItem[valueColumn].toLocaleString('en-US', {maximumFractionDigits: 2})
+                    : topItem[valueColumn];
+                summary += `Found <strong>${totalItems}</strong> results. `;
+                summary += `Top item: <strong>${topItem[labelColumn]}</strong> with <span class="metric-highlight">${topValue}</span>`;
+            } else if (question.toLowerCase().includes('trend') || question.toLowerCase().includes('weekly') || question.toLowerCase().includes('monthly')) {
+                summary += `Showing <strong>${totalItems}</strong> data points for the trend analysis.`;
+            } else {
+                summary += `Found <strong>${totalItems}</strong> results matching your query.`;
+            }
+
+            summary += '</p>';
+            return summary;
         }
 
         // Focus input on load

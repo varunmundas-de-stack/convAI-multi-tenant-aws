@@ -18,6 +18,7 @@ from security.rls import RowLevelSecurity, UserContext
 from security.auth import AuthManager, User
 from query_engine.executor import QueryExecutor
 from semantic_layer.orchestrator import QueryOrchestrator
+from query_engine.query_validator import QueryValidator
 import time
 import traceback
 
@@ -31,6 +32,8 @@ app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['PERMANENT_SESSION_LIFETIME'] = 3600  # 1 hour
 app.config['SESSION_COOKIE_SECURE'] = False  # Set to True in production with HTTPS
+app.config['SESSION_TYPE'] = 'filesystem'  # Don't persist sessions in browser
+app.config['SESSION_PERMANENT'] = False  # Expire when browser closes
 
 # Initialize Flask-Login
 login_manager = LoginManager()
@@ -43,6 +46,9 @@ auth_manager = AuthManager("database/users.db")
 
 # Cache for client-specific components (avoid recreating for each request)
 client_components = {}
+
+# Initialize query validator (shared across all clients)
+query_validator = QueryValidator()
 
 
 def get_client_components(client_id: str):
@@ -164,6 +170,10 @@ def process_query():
         components = get_client_components(current_user.client_id)
 
         question_lower = question.lower()
+        print(f"\n{'='*60}")
+        print(f"DEBUG: Processing query: '{question}'")
+        print(f"DEBUG: User: {current_user.username}, Client: {current_user.client_id}")
+        print(f"{'='*60}")
 
         # Handle meta/help questions
         help_keywords = [
@@ -233,6 +243,8 @@ def process_query():
         ]
 
         if any(keyword in question_lower for keyword in metadata_keywords):
+            print(f"DEBUG: Metadata keywords check triggered!")
+            print(f"DEBUG: Matched keywords: {[k for k in metadata_keywords if k in question_lower]}")
             client_config = auth_manager.get_client_config(current_user.client_id)
             html_response = f"""
             <div style="padding: 15px; background: #ffebee; border-left: 4px solid #f44336; border-radius: 4px;">
@@ -259,15 +271,18 @@ def process_query():
 
         # 2. General knowledge questions
         general_keywords = [
-            'who is', 'what is', 'when was', 'where is', 'how to',
+            'who is', 'when was', 'where is', 'how to',
             'weather', 'news', 'stock market', 'sports', 'politics',
             'calculate', 'math', 'geography', 'history', 'science'
         ]
 
         if any(keyword in question_lower for keyword in general_keywords):
+            print(f"DEBUG: General keywords check triggered!")
+            print(f"DEBUG: Matched keywords: {[k for k in general_keywords if k in question_lower]}")
             # Exclude legitimate analytics questions
-            analytics_exceptions = ['what are', 'how much', 'how many']
+            analytics_exceptions = ['what are', 'what is', 'how much', 'how many']
             if not any(exc in question_lower for exc in analytics_exceptions):
+                print(f"DEBUG: No analytics exceptions found, blocking as general knowledge question")
                 html_response = f"""
                 <div style="padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
                     <h3 style="color: #856404; margin-bottom: 10px;">⚠️ Out of Scope Question</h3>
@@ -308,6 +323,8 @@ def process_query():
                         mentioned_clients.append(client_config['client_name'])
 
         if mentioned_clients:
+            print(f"DEBUG: Cross-client check triggered!")
+            print(f"DEBUG: Mentioned clients: {mentioned_clients}")
             current_client = auth_manager.get_client_config(current_user.client_id)
             html_response = f"""
             <div style="padding: 15px; background: #ffebee; border-left: 4px solid #f44336; border-radius: 4px;">
@@ -334,11 +351,72 @@ def process_query():
                 'metadata': {'intent': 'permission_denied'}
             })
 
+        # Validate query for broadness
+        print(f"DEBUG: Validating query broadness...")
+        try:
+            validation_result = query_validator.validate_query(question)
+        except Exception as e:
+            print(f"DEBUG: Validation error: {str(e)}")
+            print(f"DEBUG: Traceback: {traceback.format_exc()}")
+            # If validation fails, continue to intent parsing
+            validation_result = None
+
+        if validation_result and validation_result.is_too_broad:
+            print(f"DEBUG: Query is too broad. Missing context: {validation_result.missing_context}")
+
+            # Get clarification questions
+            clarification_questions = query_validator.get_clarification_questions(
+                validation_result.missing_context
+            )
+
+            # Build interactive HTML response with clarification options
+            html_response = '<div class="suggestions-box">'
+            html_response += '<h3>🤔 Let\'s Be More Specific</h3>'
+            html_response += '<p>Your question is a bit broad. Please provide more details:</p>'
+
+            for q in clarification_questions:
+                html_response += f'<h4 style="margin-top: 15px;">{q["question"]}</h4>'
+                html_response += '<ul class="suggestions-list">'
+                for option in q['options']:
+                    # Create clickable suggestion that will refine the query
+                    # Use double quotes for HTML attributes, escape single quotes in JS
+                    import html
+                    option_safe = html.escape(option)
+                    suggestion_text = f"{question} {option}".replace("'", "\\'").replace('"', '&quot;').replace('\n', ' ')
+                    html_response += f'<li class="clarification-option" onclick=\'selectClarification("{suggestion_text}")\'>{option_safe}</li>'
+                html_response += '</ul>'
+
+            # Show refined suggestion
+            if validation_result.refined_question:
+                import html
+                refined_safe = html.escape(validation_result.refined_question)
+                refined_escaped = validation_result.refined_question.replace('"', '&quot;')
+                html_response += f'<div class="hint">'
+                html_response += f'<strong>💡 Or try this:</strong> <span style="cursor: pointer; color: #667eea;" onclick=\'selectClarification("{refined_escaped}")\'>{refined_safe}</span>'
+                html_response += '</div>'
+
+            html_response += '</div>'
+
+            return jsonify({
+                'success': True,
+                'response': html_response,
+                'metadata': {
+                    'intent': 'clarification_needed',
+                    'confidence': 0,
+                    'exec_time_ms': 0
+                }
+            })
+
+        print(f"DEBUG: Query validation passed, proceeding to intent parsing...")
+
         # Parse intent
         start_time = time.time()
         try:
             semantic_query = components['intent_parser'].parse(question)
+            print(f"DEBUG: Successfully parsed intent: {semantic_query.intent}")  # Debug log
         except Exception as e:
+            print(f"DEBUG: Intent parsing failed: {str(e)}")  # Debug log
+            print(f"DEBUG: Full error: {traceback.format_exc()}")  # Full traceback
             auth_manager.log_query(
                 current_user.id, current_user.username, current_user.client_id,
                 question, None, False, str(e)
@@ -392,6 +470,8 @@ def process_query():
         return jsonify({
             'success': True,
             'response': response,
+            'raw_data': result.get('results', []),  # Include raw data for chart rendering
+            'query_type': result.get('query_type', 'standard'),
             'metadata': {
                 'user': current_user.username,
                 'client': current_user.client_id,

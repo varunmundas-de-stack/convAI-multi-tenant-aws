@@ -24,8 +24,9 @@ class QueryValidator:
 
     # Patterns that indicate broad/vague questions
     BROAD_PATTERNS = [
-        r'^(show|get|give|tell)\s+(me\s+)?(all|everything|anything)',
-        r'^what\s+(is|are)\s+(the|my)?\s*$',
+        r'^(show|get|give|tell)\s+(me\s+)?(all|everything|anything|data)',
+        r'^(show|get|give)\s+\w+\s*$',  # "show brands", "get data" (2 words only)
+        r'^what\s+(is|are)\s+\w+\s*$',  # "what is sales", "what are trends"
         r'^how\s+much\s*$',
         r'^how\s+many\s*$',
         r'^\w+\s*\?*$',  # Single word questions

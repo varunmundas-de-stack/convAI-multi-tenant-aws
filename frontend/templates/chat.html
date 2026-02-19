@@ -539,11 +539,237 @@
                 transform: translateY(-10px);
             }
         }
+
+        /* ---- Insights bell button ---- */
+        .insights-button {
+            position: absolute;
+            top: 20px;
+            right: 250px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            backdrop-filter: blur(10px);
+        }
+
+        .insights-button:hover {
+            background: rgba(255, 255, 255, 0.35);
+            transform: scale(1.05);
+        }
+
+        .insights-badge {
+            position: absolute;
+            top: -7px;
+            right: -7px;
+            background: #ff4444;
+            color: white;
+            border-radius: 50%;
+            width: 18px;
+            height: 18px;
+            font-size: 10px;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        /* ---- Insights slide-in panel ---- */
+        .insights-overlay {
+            display: none;
+            position: fixed;
+            top: 0; right: 0; bottom: 0;
+            width: 380px;
+            background: white;
+            box-shadow: -4px 0 24px rgba(0, 0, 0, 0.18);
+            z-index: 1000;
+            flex-direction: column;
+        }
+
+        .insights-overlay.open {
+            display: flex;
+            animation: slideInRight 0.25s ease;
+        }
+
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to   { transform: translateX(0);    opacity: 1; }
+        }
+
+        .insights-panel-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-shrink: 0;
+        }
+
+        .insights-panel-header h3 {
+            font-size: 16px;
+            font-weight: 700;
+            margin: 0;
+        }
+
+        .insights-panel-subtitle {
+            font-size: 11px;
+            opacity: 0.8;
+            margin-top: 2px;
+        }
+
+        .insights-close {
+            background: rgba(255, 255, 255, 0.25);
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            width: 28px;
+            height: 28px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+            transition: background 0.15s;
+        }
+
+        .insights-close:hover {
+            background: rgba(255, 255, 255, 0.4);
+        }
+
+        .insights-panel-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 12px;
+            background: #f5f5f5;
+        }
+
+        /* ---- Insight cards ---- */
+        .insight-card {
+            background: white;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 10px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.07);
+            cursor: pointer;
+            transition: transform 0.15s, box-shadow 0.15s;
+            border-left: 4px solid #ccc;
+            position: relative;
+        }
+
+        .insight-card:hover {
+            transform: translateX(-2px);
+            box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+        }
+
+        .insight-card.priority-high   { border-left-color: #f44336; }
+        .insight-card.priority-medium { border-left-color: #ff9800; }
+        .insight-card.priority-low    { border-left-color: #4caf50; }
+
+        .insight-card.unread.priority-high   { background: #fff8f8; }
+        .insight-card.unread.priority-medium { background: #fffaf4; }
+        .insight-card.unread.priority-low    { background: #f8fff8; }
+
+        .unread-dot {
+            position: absolute;
+            top: 12px; right: 12px;
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: #ff4444;
+        }
+
+        .insight-meta {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 7px;
+            flex-wrap: wrap;
+        }
+
+        .insight-tag {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            background: #f0f0f0;
+            color: #666;
+        }
+
+        .insight-tag.type-trend          { background: #e3f2fd; color: #1565c0; }
+        .insight-tag.type-anomaly        { background: #fce4ec; color: #c62828; }
+        .insight-tag.type-alert          { background: #fff3e0; color: #e65100; }
+        .insight-tag.type-recommendation { background: #e8f5e9; color: #1b5e20; }
+        .insight-tag.type-opportunity    { background: #f3e5f5; color: #4a148c; }
+        .insight-tag.prio-high   { background: #ffebee; color: #c62828; }
+        .insight-tag.prio-medium { background: #fff8e1; color: #f57f17; }
+        .insight-tag.prio-low    { background: #e8f5e9; color: #2e7d32; }
+
+        .insight-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: #222;
+            margin-bottom: 5px;
+            line-height: 1.45;
+        }
+
+        .insight-desc {
+            font-size: 12px;
+            color: #555;
+            line-height: 1.55;
+            margin-bottom: 8px;
+        }
+
+        .insight-action {
+            font-size: 11px;
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .insight-action::before { content: "→  "; }
+
+        .insight-click-hint {
+            font-size: 10px;
+            color: #aaa;
+            margin-top: 7px;
+            font-style: italic;
+        }
+
+        .insights-empty {
+            text-align: center;
+            color: #aaa;
+            padding: 50px 20px;
+            font-size: 13px;
+            line-height: 1.8;
+        }
+
+        .insights-loading {
+            text-align: center;
+            padding: 40px;
+            color: #aaa;
+            font-size: 13px;
+        }
+
+        .insights-refresh-note {
+            text-align: center;
+            font-size: 11px;
+            color: #bbb;
+            padding: 8px 12px 4px;
+        }
     </style>
 </head>
 <body>
     <div class="chat-container">
         <div class="chat-header">
+            <button class="insights-button" id="insightsBtn" onclick="toggleInsightsPanel()">
+                Insights
+                <span class="insights-badge" id="insightsBadge"></span>
+            </button>
             <button class="dashboard-button" onclick="openDashboard()">Dashboard</button>
             <button class="logout-button" onclick="logout()">Logout</button>
             <h1>CPG Analytics Chatbot</h1>
@@ -606,6 +832,20 @@
                 />
                 <button id="sendButton" class="send-button">Send</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Insights slide-in panel -->
+    <div class="insights-overlay" id="insightsPanel">
+        <div class="insights-panel-header">
+            <div>
+                <h3>Targeted Insights</h3>
+                <div class="insights-panel-subtitle">Personalised nudges for your role</div>
+            </div>
+            <button class="insights-close" onclick="toggleInsightsPanel()">&#x2715;</button>
+        </div>
+        <div class="insights-panel-body" id="insightsPanelBody">
+            <div class="insights-loading">Loading insights&hellip;</div>
         </div>
     </div>
 
@@ -982,6 +1222,124 @@
             summary += '</p>';
             return summary;
         }
+
+        // ---- Targeted Insights Panel ---- //
+
+        function toggleInsightsPanel() {
+            const panel = document.getElementById('insightsPanel');
+            if (panel.classList.contains('open')) {
+                panel.classList.remove('open');
+            } else {
+                panel.classList.add('open');
+                loadInsights();
+            }
+        }
+
+        function loadInsights() {
+            const body = document.getElementById('insightsPanelBody');
+            body.innerHTML = '<div class="insights-loading">Loading insights&hellip;</div>';
+
+            fetch('/api/insights')
+                .then(res => res.json())
+                .then(data => {
+                    const insights = data.insights || [];
+                    if (insights.length === 0) {
+                        body.innerHTML = `
+                            <div class="insights-empty">
+                                No insights yet.<br>
+                                Insights are generated every 6 hours.<br>
+                                <br>Check back soon!
+                            </div>`;
+                        return;
+                    }
+
+                    body.innerHTML =
+                        insights.map(i => renderInsightCard(i)).join('') +
+                        '<div class="insights-refresh-note">Insights refresh every 6 hours</div>';
+
+                    // Attach click handlers via data attributes (safe — no inline eval)
+                    body.querySelectorAll('.insight-card').forEach(card => {
+                        card.addEventListener('click', () => {
+                            useInsight(card.dataset.insightId, card.dataset.query);
+                        });
+                    });
+                })
+                .catch(() => {
+                    body.innerHTML = '<div class="insights-empty">Could not load insights.<br>Please try again.</div>';
+                });
+        }
+
+        function renderInsightCard(ins) {
+            const unreadClass  = ins.is_read ? '' : 'unread';
+            const priorityClass = `priority-${ins.priority}`;
+            const typeClass     = `type-${ins.insight_type}`;
+            const prioTagClass  = `prio-${ins.priority}`;
+
+            const changePart = (ins.metric_change_pct != null)
+                ? ` <span style="color:${ins.metric_change_pct >= 0 ? '#4caf50' : '#f44336'};font-weight:600;">` +
+                  `${ins.metric_change_pct >= 0 ? '+' : ''}${ins.metric_change_pct.toFixed(1)}%</span>`
+                : '';
+
+            const unreadDot = ins.is_read ? '' : '<div class="unread-dot"></div>';
+
+            // Safely encode the suggested query for use in a data attribute
+            const queryAttr = (ins.suggested_query || '').replace(/"/g, '&quot;');
+
+            return `
+                <div class="insight-card ${unreadClass} ${priorityClass}"
+                     data-insight-id="${ins.insight_id}"
+                     data-query="${queryAttr}">
+                    ${unreadDot}
+                    <div class="insight-meta">
+                        <span class="insight-tag ${typeClass}">${ins.insight_type}</span>
+                        <span class="insight-tag ${prioTagClass}">${ins.priority}</span>
+                        <span class="insight-tag">${ins.hierarchy_level}</span>
+                    </div>
+                    <div class="insight-title">${ins.title}${changePart}</div>
+                    <div class="insight-desc">${ins.description}</div>
+                    <div class="insight-action">${ins.suggested_action}</div>
+                    <div class="insight-click-hint">Click to explore in chat</div>
+                </div>`;
+        }
+
+        function useInsight(insightId, suggestedQuery) {
+            // Mark as read
+            fetch(`/api/insights/${insightId}/read`, { method: 'POST' })
+                .then(() => {
+                    const card = document.querySelector(`[data-insight-id="${insightId}"]`);
+                    if (card) {
+                        card.classList.remove('unread');
+                        const dot = card.querySelector('.unread-dot');
+                        if (dot) dot.remove();
+                    }
+                    refreshInsightBadge();
+                });
+
+            // Pre-fill chat and close panel
+            chatInput.value = suggestedQuery;
+            toggleInsightsPanel();
+            chatInput.focus();
+        }
+
+        function refreshInsightBadge() {
+            fetch('/api/insights/count')
+                .then(res => res.json())
+                .then(data => {
+                    const badge = document.getElementById('insightsBadge');
+                    const count = data.unread_count || 0;
+                    if (count > 0) {
+                        badge.textContent = count > 9 ? '9+' : String(count);
+                        badge.style.display = 'flex';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                })
+                .catch(() => {});
+        }
+
+        // Initial badge load + poll every 30 seconds
+        refreshInsightBadge();
+        setInterval(refreshInsightBadge, 30000);
 
         // Focus input on load
         chatInput.focus();

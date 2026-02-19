@@ -37,6 +37,42 @@ def create_user_database():
         )
     """)
 
+    # Insights table — stores hierarchy-targeted nudges
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS insights (
+            insight_id TEXT PRIMARY KEY,
+            tenant_id TEXT NOT NULL,
+            hierarchy_level TEXT NOT NULL,  -- SO, ASM, ZSM, NSM, all
+            so_code TEXT,
+            asm_code TEXT,
+            zsm_code TEXT,
+            nsm_code TEXT,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            insight_type TEXT NOT NULL,  -- trend, anomaly, alert, recommendation, opportunity
+            priority TEXT NOT NULL,      -- high, medium, low
+            metric_value REAL,
+            metric_change_pct REAL,
+            suggested_action TEXT,
+            suggested_query TEXT,        -- pre-filled chat query the user can click
+            data_json TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP,
+            is_active BOOLEAN DEFAULT 1
+        )
+    """)
+
+    # Per-user read tracking (separate so one insight can be delivered to multiple users)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS insight_reads (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            insight_id TEXT NOT NULL,
+            user_id INTEGER NOT NULL,
+            read_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(insight_id, user_id)
+        )
+    """)
+
     # Clients table
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS clients (

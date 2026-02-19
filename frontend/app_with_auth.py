@@ -21,6 +21,8 @@ from semantic_layer.orchestrator import QueryOrchestrator
 from query_engine.query_validator import QueryValidator
 import time
 import traceback
+import threading
+from insights.hierarchy_insights_engine import HierarchyInsightsEngine
 
 app = Flask(__name__)
 
@@ -49,6 +51,37 @@ client_components = {}
 
 # Initialize query validator (shared across all clients)
 query_validator = QueryValidator()
+
+# Tenant schema mapping (client_id -> DuckDB schema name)
+TENANT_SCHEMAS = {
+    'nestle':   'client_nestle',
+    'unilever': 'client_unilever',
+    'itc':      'client_itc',
+}
+
+# Initialize hierarchy insights engine
+_APP_ROOT = Path(__file__).parent.parent
+insights_engine = HierarchyInsightsEngine(
+    analytics_db_path=str(_APP_ROOT / 'database' / 'cpg_multi_tenant.duckdb'),
+    users_db_path=str(_APP_ROOT / 'database' / 'users.db'),
+)
+
+
+def _insights_generation_loop():
+    """Background daemon thread: generate insights on startup then every 6 hours."""
+    time.sleep(10)  # let Flask finish initialising first
+    while True:
+        for client_id, schema_name in TENANT_SCHEMAS.items():
+            try:
+                count = insights_engine.generate_and_store(client_id, schema_name)
+                print(f"[Insights] {client_id}: {count} insights generated/refreshed")
+            except Exception as exc:
+                print(f"[Insights] Error generating for {client_id}: {exc}")
+        time.sleep(6 * 3600)  # refresh every 6 hours
+
+
+_insights_thread = threading.Thread(target=_insights_generation_loop, daemon=True)
+_insights_thread.start()
 
 
 def get_client_components(client_id: str):
@@ -615,6 +648,47 @@ def format_value(value):
         return f'{value:,}'
     else:
         return str(value)
+
+
+@app.route('/api/insights', methods=['GET'])
+@login_required
+def get_insights():
+    """Return hierarchy-targeted insights for the current user."""
+    hierarchy_level = current_user.sales_hierarchy_level or current_user.role
+    insights = insights_engine.get_insights_for_user(
+        user_id=current_user.id,
+        hierarchy_level=hierarchy_level,
+        tenant_id=current_user.client_id,
+        so_code=current_user.so_code,
+        asm_code=current_user.asm_code,
+        zsm_code=current_user.zsm_code,
+        nsm_code=current_user.nsm_code,
+    )
+    return jsonify({'insights': insights})
+
+
+@app.route('/api/insights/count', methods=['GET'])
+@login_required
+def get_insights_count():
+    """Return unread insight count for badge display."""
+    hierarchy_level = current_user.sales_hierarchy_level or current_user.role
+    count = insights_engine.get_unread_count(
+        user_id=current_user.id,
+        hierarchy_level=hierarchy_level,
+        tenant_id=current_user.client_id,
+        so_code=current_user.so_code,
+        asm_code=current_user.asm_code,
+        zsm_code=current_user.zsm_code,
+    )
+    return jsonify({'unread_count': count})
+
+
+@app.route('/api/insights/<insight_id>/read', methods=['POST'])
+@login_required
+def mark_insight_read(insight_id):
+    """Mark an insight as read for the current user."""
+    insights_engine.mark_read(insight_id, current_user.id)
+    return jsonify({'success': True})
 
 
 if __name__ == '__main__':

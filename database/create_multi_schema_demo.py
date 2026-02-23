@@ -80,6 +80,23 @@ def create_dimensions(conn, schema):
         )
     """)
 
+    # dim_sales_hierarchy — required by the Push Insights engine
+    conn.execute(f"""
+        CREATE TABLE IF NOT EXISTS {schema}.dim_sales_hierarchy (
+            hierarchy_key   INTEGER PRIMARY KEY,
+            so_code         VARCHAR,
+            so_name         VARCHAR,
+            asm_code        VARCHAR,
+            asm_name        VARCHAR,
+            zsm_code        VARCHAR,
+            zsm_name        VARCHAR,
+            nsm_code        VARCHAR,
+            nsm_name        VARCHAR,
+            zone_name       VARCHAR,
+            region_name     VARCHAR
+        )
+    """)
+
     # dim_date
     conn.execute(f"""
         CREATE TABLE IF NOT EXISTS {schema}.dim_date (
@@ -98,22 +115,23 @@ def create_fact_table(conn, schema):
     """Create fact table"""
     conn.execute(f"""
         CREATE TABLE IF NOT EXISTS {schema}.fact_secondary_sales (
-            invoice_key INTEGER PRIMARY KEY,
-            invoice_date DATE,
-            product_key INTEGER,
-            geography_key INTEGER,
-            customer_key INTEGER,
-            channel_key INTEGER,
-            date_key INTEGER,
-            invoice_number VARCHAR,
-            invoice_value DECIMAL(12,2),
-            discount_amount DECIMAL(12,2),
+            invoice_key         INTEGER PRIMARY KEY,
+            invoice_date        DATE,
+            product_key         INTEGER,
+            geography_key       INTEGER,
+            customer_key        INTEGER,
+            channel_key         INTEGER,
+            date_key            INTEGER,
+            sales_hierarchy_key INTEGER,
+            invoice_number      VARCHAR,
+            invoice_value       DECIMAL(12,2),
+            discount_amount     DECIMAL(12,2),
             discount_percentage DECIMAL(5,2),
-            net_value DECIMAL(12,2),
-            invoice_quantity INTEGER,
-            margin_amount DECIMAL(12,2),
-            margin_percentage DECIMAL(5,2),
-            return_flag BOOLEAN DEFAULT FALSE
+            net_value           DECIMAL(12,2),
+            invoice_quantity    INTEGER,
+            margin_amount       DECIMAL(12,2),
+            margin_percentage   DECIMAL(5,2),
+            return_flag         BOOLEAN DEFAULT FALSE
         )
     """)
 
@@ -182,9 +200,30 @@ def insert_sample_data(conn, schema):
             )
         """)
 
-    # Insert dates (30 days)
-    start_date = datetime(2024, 1, 1)
-    for i in range(30):
+    # Insert sales hierarchy (NSM > ZSM > ASM > SO)
+    hierarchy_rows = [
+        # key, so_code,  so_name,        asm_code,       asm_name,        zsm_code, zsm_name,    nsm_code, nsm_name,  zone,   region
+        (1, 'ZSM01_ASM1_SO01', 'SO North 1',  'ZSM01_ASM1',   'ASM North 1',   'ZSM01',  'ZSM North', 'NSM01',  'NSM India', 'North', 'North'),
+        (2, 'ZSM01_ASM1_SO02', 'SO North 2',  'ZSM01_ASM1',   'ASM North 1',   'ZSM01',  'ZSM North', 'NSM01',  'NSM India', 'North', 'North'),
+        (3, 'ZSM01_ASM2_SO01', 'SO North 3',  'ZSM01_ASM2',   'ASM North 2',   'ZSM01',  'ZSM North', 'NSM01',  'NSM India', 'North', 'North'),
+        (4, 'ZSM02_ASM1_SO01', 'SO South 1',  'ZSM02_ASM1',   'ASM South 1',   'ZSM02',  'ZSM South', 'NSM01',  'NSM India', 'South', 'South'),
+        (5, 'ZSM02_ASM1_SO02', 'SO South 2',  'ZSM02_ASM1',   'ASM South 1',   'ZSM02',  'ZSM South', 'NSM01',  'NSM India', 'South', 'South'),
+    ]
+    for row in hierarchy_rows:
+        conn.execute(f"""
+            INSERT INTO {schema}.dim_sales_hierarchy VALUES (
+                {row[0]},
+                '{row[1]}', '{row[2]}',
+                '{row[3]}', '{row[4]}',
+                '{row[5]}', '{row[6]}',
+                '{row[7]}', '{row[8]}',
+                '{row[9]}', '{row[10]}'
+            )
+        """)
+
+    # Insert dates — use rolling 90 days ending today so "last 4 weeks" filters always return data
+    start_date = datetime.now() - timedelta(days=89)
+    for i in range(90):
         date = start_date + timedelta(days=i)
         conn.execute(f"""
             INSERT INTO {schema}.dim_date VALUES (
@@ -198,15 +237,16 @@ def insert_sample_data(conn, schema):
             )
         """)
 
-    # Insert sales transactions (50 transactions)
+    # Insert sales transactions (200 transactions spread over the 90-day window)
     random.seed(hash(schema))  # Different data per schema
 
-    for i in range(50):
-        product_key = random.randint(1, 10)
-        geo_key = random.randint(1, 5)
-        customer_key = random.randint(1, 5)
-        channel_key = random.randint(1, 5)
-        date_key = random.randint(1, 30)
+    for i in range(200):
+        product_key       = random.randint(1, 10)
+        geo_key           = random.randint(1, 5)
+        customer_key      = random.randint(1, 5)
+        channel_key       = random.randint(1, 5)
+        date_key          = random.randint(1, 90)
+        hierarchy_key     = random.randint(1, 5)
 
         invoice_value = random.randint(5000, 50000)
         discount_pct = random.uniform(5, 15)
@@ -227,6 +267,7 @@ def insert_sample_data(conn, schema):
                 {customer_key},
                 {channel_key},
                 {date_key},
+                {hierarchy_key},
                 'INV{i+1:04d}-{client_suffix}',
                 {invoice_value},
                 {discount_amt:.2f},

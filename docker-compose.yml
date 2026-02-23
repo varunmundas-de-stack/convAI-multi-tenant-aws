@@ -1,0 +1,40 @@
+version: '3.9'
+
+services:
+  app:
+    build: .
+    container_name: cpg_sales_assistant
+    ports:
+      - "5000:5000"
+    volumes:
+      # Persist databases outside the container so data survives rebuilds
+      - ./database:/app/database
+      - ./semantic_layer/configs:/app/semantic_layer/configs
+    environment:
+      - FLASK_SECRET_KEY=${FLASK_SECRET_KEY:-change-me-in-production}
+      - USE_CLAUDE_API=${USE_CLAUDE_API:-false}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - ANONYMIZE_SCHEMA=${ANONYMIZE_SCHEMA:-false}
+      # Point Ollama at the sidecar service when it's running
+      - OLLAMA_HOST=http://ollama:11434
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: cpg_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    restart: unless-stopped
+    # Pull the model on first start
+    entrypoint: >
+      sh -c "ollama serve &
+             sleep 5 &&
+             ollama pull llama3.2:3b &&
+             wait"
+
+volumes:
+  ollama_models:

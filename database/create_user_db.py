@@ -102,6 +102,36 @@ def create_user_database():
         )
     """)
 
+    # Chat sessions — one row per conversation thread
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS chat_sessions (
+            session_id   TEXT PRIMARY KEY,
+            user_id      INTEGER NOT NULL,
+            client_id    TEXT NOT NULL,
+            title        TEXT DEFAULT 'New conversation',
+            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_active  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_active    BOOLEAN DEFAULT 1,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        )
+    """)
+
+    # Chat messages — every user question and assistant reply
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            message_id   TEXT PRIMARY KEY,
+            session_id   TEXT NOT NULL,
+            user_id      INTEGER NOT NULL,
+            role         TEXT NOT NULL,        -- 'user' | 'assistant'
+            content      TEXT NOT NULL,        -- user question text or assistant HTML response
+            raw_data     TEXT,                 -- JSON array of result rows (for chart re-render)
+            query_type   TEXT,                 -- 'single' | 'diagnostic' | null
+            metadata     TEXT,                 -- JSON: intent, confidence, exec_time_ms
+            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES chat_sessions(session_id)
+        )
+    """)
+
     conn.commit()
     return conn
 
@@ -215,6 +245,41 @@ def create_sample_data(conn):
                 hierarchy_info += so_code
             print(f"{username:<20} {role:<10} {hierarchy_info}")
     print("="*90)
+
+
+def migrate_existing_db():
+    """Add chat_sessions / chat_messages tables to an already-existing users.db."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS chat_sessions (
+            session_id   TEXT PRIMARY KEY,
+            user_id      INTEGER NOT NULL,
+            client_id    TEXT NOT NULL,
+            title        TEXT DEFAULT 'New conversation',
+            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_active  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            is_active    BOOLEAN DEFAULT 1,
+            FOREIGN KEY (user_id) REFERENCES users(user_id)
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS chat_messages (
+            message_id   TEXT PRIMARY KEY,
+            session_id   TEXT NOT NULL,
+            user_id      INTEGER NOT NULL,
+            role         TEXT NOT NULL,
+            content      TEXT NOT NULL,
+            raw_data     TEXT,
+            query_type   TEXT,
+            metadata     TEXT,
+            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (session_id) REFERENCES chat_sessions(session_id)
+        )
+    """)
+    conn.commit()
+    conn.close()
+    print("[OK] chat_sessions and chat_messages tables ready.")
 
 
 if __name__ == "__main__":

@@ -4,12 +4,16 @@ Implements user authentication and client-based schema access control
 """
 import sys
 import os
+import re
+import uuid
+import sqlite3
+import json as _json
 from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from semantic_layer.semantic_layer import SemanticLayer
 from llm.intent_parser_v2 import IntentParserV2
@@ -45,6 +49,12 @@ login_manager.session_protection = "strong"  # Prevent session hijacking
 
 # Absolute project root — resolves paths correctly regardless of working directory
 _APP_ROOT = Path(__file__).parent.parent
+_REACT_BUILD = _APP_ROOT / 'frontend' / 'static' / 'react'
+
+# Serve React static build if it exists; fall back to legacy Jinja templates
+if _REACT_BUILD.exists():
+    app.static_folder = str(_REACT_BUILD)
+    app.static_url_path = ''
 
 # Initialize auth manager with absolute path
 auth_manager = AuthManager(str(_APP_ROOT / 'database' / 'users.db'))
@@ -135,11 +145,18 @@ def login():
         user = auth_manager.authenticate(username, password)
 
         if user:
-            login_user(user, remember=False)  # Don't remember across browser sessions
+            login_user(user, remember=False)
             return jsonify({
                 'success': True,
-                'message': 'Login successful',
-                'redirect': url_for('index')
+                'user': {
+                    'user_id': user.id,
+                    'username': user.username,
+                    'full_name': user.full_name,
+                    'client_id': user.client_id,
+                    'role': user.role,
+                    'department': user.department,
+                    'sales_hierarchy_level': user.sales_hierarchy_level,
+                },
             })
         else:
             return jsonify({
@@ -147,26 +164,59 @@ def login():
                 'error': 'Invalid username or password'
             }), 401
 
-    # GET request - show login form
+    # GET — serve React app (or legacy HTML in dev without a build)
+    if _REACT_BUILD.exists():
+        return send_from_directory(str(_REACT_BUILD), 'index.html')
     return render_template('login.html')
 
 
 @app.route('/logout')
-@login_required
 def logout():
-    """Logout user"""
+    """Logout — works for both React (GET) and legacy HTML"""
     logout_user()
+    if request.accept_mimetypes.accept_json:
+        return jsonify({'success': True})
     return redirect(url_for('login'))
+
+
+@app.route('/api/me')
+@login_required
+def api_me():
+    """Return current authenticated user info (used by React on page reload)"""
+    return jsonify({
+        'user_id': current_user.id,
+        'username': current_user.username,
+        'full_name': current_user.full_name,
+        'client_id': current_user.client_id,
+        'role': current_user.role,
+        'department': current_user.department,
+        'sales_hierarchy_level': current_user.sales_hierarchy_level,
+    })
 
 
 @app.route('/')
 @login_required
 def index():
-    """Render chat interface (requires login)"""
+    """Serve React app or legacy Jinja template"""
+    if _REACT_BUILD.exists():
+        return send_from_directory(str(_REACT_BUILD), 'index.html')
     client_config = auth_manager.get_client_config(current_user.client_id)
     return render_template('chat.html',
-                         user=current_user,
-                         client_name=client_config['client_name'])
+                           user=current_user,
+                           client_name=client_config['client_name'])
+
+
+@app.route('/<path:path>')
+def catch_all(path):
+    """React client-side routing — serve index.html for all non-API paths"""
+    if path.startswith('api/'):
+        return jsonify({'error': 'Not found'}), 404
+    if _REACT_BUILD.exists():
+        full = _REACT_BUILD / path
+        if full.exists():
+            return send_from_directory(str(_REACT_BUILD), path)
+        return send_from_directory(str(_REACT_BUILD), 'index.html')
+    return redirect(url_for('index'))
 
 
 @app.route('/api/suggestions', methods=['GET'])
@@ -277,9 +327,14 @@ def process_query():
             'what data', 'what fields', 'available fields'
         ]
 
-        if any(keyword in question_lower for keyword in metadata_keywords):
-            print(f"DEBUG: Metadata keywords check triggered!")
-            print(f"DEBUG: Matched keywords: {[k for k in metadata_keywords if k in question_lower]}")
+        def _kw_match(text, keywords):
+            """Word-boundary aware keyword matching — avoids 'show top' matching 'how to'."""
+            for kw in keywords:
+                if re.search(r'\b' + re.escape(kw) + r'\b', text):
+                    return True
+            return False
+
+        if _kw_match(question_lower, metadata_keywords):
             client_config = auth_manager.get_client_config(current_user.client_id)
             html_response = f"""
             <div style="padding: 15px; background: #ffebee; border-left: 4px solid #f44336; border-radius: 4px;">
@@ -311,13 +366,9 @@ def process_query():
             'calculate', 'math', 'geography', 'history', 'science'
         ]
 
-        if any(keyword in question_lower for keyword in general_keywords):
-            print(f"DEBUG: General keywords check triggered!")
-            print(f"DEBUG: Matched keywords: {[k for k in general_keywords if k in question_lower]}")
-            # Exclude legitimate analytics questions
+        if _kw_match(question_lower, general_keywords):
             analytics_exceptions = ['what are', 'what is', 'how much', 'how many']
             if not any(exc in question_lower for exc in analytics_exceptions):
-                print(f"DEBUG: No analytics exceptions found, blocking as general knowledge question")
                 html_response = f"""
                 <div style="padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
                     <h3 style="color: #856404; margin-bottom: 10px;">⚠️ Out of Scope Question</h3>
@@ -691,6 +742,152 @@ def mark_insight_read(insight_id):
     """Mark an insight as read for the current user."""
     insights_engine.mark_read(insight_id, current_user.id)
     return jsonify({'success': True})
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Chat Session Persistence  (Claude.ai / ChatGPT style)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _sessions_db():
+    """Return a sqlite3 connection to users.db (session tables live there)."""
+    conn = sqlite3.connect(str(_APP_ROOT / 'database' / 'users.db'))
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+@app.route('/api/sessions', methods=['GET'])
+@login_required
+def list_sessions():
+    """Return all chat sessions for the current user, newest first."""
+    with _sessions_db() as conn:
+        rows = conn.execute("""
+            SELECT session_id, title, created_at, last_active
+            FROM   chat_sessions
+            WHERE  user_id = ? AND is_active = 1
+            ORDER  BY last_active DESC
+            LIMIT  100
+        """, (current_user.id,)).fetchall()
+    return jsonify({'sessions': [dict(r) for r in rows]})
+
+
+@app.route('/api/sessions', methods=['POST'])
+@login_required
+def create_session():
+    """Create a new chat session."""
+    body      = request.get_json() or {}
+    title     = body.get('title', 'New conversation')[:120]
+    sid       = str(uuid.uuid4())
+    with _sessions_db() as conn:
+        conn.execute("""
+            INSERT INTO chat_sessions (session_id, user_id, client_id, title)
+            VALUES (?, ?, ?, ?)
+        """, (sid, current_user.id, current_user.client_id, title))
+        conn.commit()
+    return jsonify({'session_id': sid, 'title': title}), 201
+
+
+@app.route('/api/sessions/<session_id>', methods=['PATCH'])
+@login_required
+def rename_session(session_id):
+    """Rename a session title."""
+    body  = request.get_json() or {}
+    title = (body.get('title') or '').strip()[:120]
+    if not title:
+        return jsonify({'error': 'title is required'}), 400
+    with _sessions_db() as conn:
+        conn.execute("""
+            UPDATE chat_sessions SET title = ?
+            WHERE  session_id = ? AND user_id = ?
+        """, (title, session_id, current_user.id))
+        conn.commit()
+    return jsonify({'success': True, 'title': title})
+
+
+@app.route('/api/sessions/<session_id>', methods=['DELETE'])
+@login_required
+def delete_session(session_id):
+    """Soft-delete a session (and its messages stay for audit)."""
+    with _sessions_db() as conn:
+        conn.execute("""
+            UPDATE chat_sessions SET is_active = 0
+            WHERE  session_id = ? AND user_id = ?
+        """, (session_id, current_user.id))
+        conn.commit()
+    return jsonify({'success': True})
+
+
+@app.route('/api/sessions/<session_id>/messages', methods=['GET'])
+@login_required
+def get_session_messages(session_id):
+    """Return all messages in a session (verifies ownership)."""
+    with _sessions_db() as conn:
+        # Ownership check
+        sess = conn.execute("""
+            SELECT session_id FROM chat_sessions
+            WHERE session_id = ? AND user_id = ? AND is_active = 1
+        """, (session_id, current_user.id)).fetchone()
+        if not sess:
+            return jsonify({'error': 'Session not found'}), 404
+
+        rows = conn.execute("""
+            SELECT message_id, role, content, raw_data, query_type, metadata, created_at
+            FROM   chat_messages
+            WHERE  session_id = ?
+            ORDER  BY created_at ASC
+        """, (session_id,)).fetchall()
+    return jsonify({'messages': [dict(r) for r in rows]})
+
+
+@app.route('/api/sessions/<session_id>/messages', methods=['POST'])
+@login_required
+def save_message(session_id):
+    """Append a message to a session and bump last_active."""
+    body = request.get_json() or {}
+    role      = body.get('role')        # 'user' | 'assistant'
+    content   = body.get('content', '')
+    raw_data  = body.get('raw_data')    # list or None
+    query_type = body.get('query_type')
+    metadata  = body.get('metadata')   # dict or None
+    title_hint = body.get('title_hint') # used to auto-title session from first user msg
+
+    if role not in ('user', 'assistant') or not content:
+        return jsonify({'error': 'role and content are required'}), 400
+
+    mid = str(uuid.uuid4())
+    raw_str  = _json.dumps(raw_data)  if raw_data  is not None else None
+    meta_str = _json.dumps(metadata) if metadata  is not None else None
+
+    with _sessions_db() as conn:
+        # Ownership check
+        sess = conn.execute("""
+            SELECT title FROM chat_sessions
+            WHERE session_id = ? AND user_id = ? AND is_active = 1
+        """, (session_id, current_user.id)).fetchone()
+        if not sess:
+            return jsonify({'error': 'Session not found'}), 404
+
+        conn.execute("""
+            INSERT INTO chat_messages
+                (message_id, session_id, user_id, role, content, raw_data, query_type, metadata)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (mid, session_id, current_user.id, role, content, raw_str, query_type, meta_str))
+
+        # Auto-title the session from the first user message
+        if role == 'user' and sess['title'] in ('New conversation', ''):
+            auto_title = (title_hint or content)[:80]
+            conn.execute("""
+                UPDATE chat_sessions SET title = ?, last_active = CURRENT_TIMESTAMP
+                WHERE  session_id = ?
+            """, (auto_title, session_id))
+        else:
+            conn.execute("""
+                UPDATE chat_sessions SET last_active = CURRENT_TIMESTAMP
+                WHERE  session_id = ?
+            """, (session_id,))
+
+        conn.commit()
+
+    return jsonify({'message_id': mid}), 201
 
 
 if __name__ == '__main__':

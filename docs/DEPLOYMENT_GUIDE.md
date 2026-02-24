@@ -1,7 +1,7 @@
-# CPG Conversational AI — Windows 11 Standalone Deployment Guide
+# CPG Conversational AI — Deployment Guide
 
-> Full service guide for spinning up the platform on a single Windows 11 machine.
-> Covers system requirements, software installation, data setup, and starting the app.
+> End-to-end setup guide for running the platform on a Windows 11 machine.
+> Covers system requirements, installation, data setup, and starting the app.
 
 ---
 
@@ -9,342 +9,284 @@
 
 1. [System Requirements](#1-system-requirements)
 2. [Software Prerequisites](#2-software-prerequisites)
-3. [Project Setup](#3-project-setup)
+3. [Clone the Repository](#3-clone-the-repository)
 4. [Python Environment](#4-python-environment)
-5. [Ollama LLM Setup](#5-ollama-llm-setup)
+5. [LLM Setup](#5-llm-setup)
 6. [Database Initialisation](#6-database-initialisation)
-7. [Client Config Verification](#7-client-config-verification)
-8. [Starting the Application](#8-starting-the-application)
-9. [Login Credentials Reference](#9-login-credentials-reference)
-10. [Environment Variables (Optional)](#10-environment-variables-optional)
-11. [Switching to Claude API (Production LLM)](#11-switching-to-claude-api-production-llm)
-12. [Windows Firewall & Port Reference](#12-windows-firewall--port-reference)
-13. [Auto-Start on Boot (Optional)](#13-auto-start-on-boot-optional)
+7. [Starting the Application](#7-starting-the-application)
+8. [Login Credentials](#8-login-credentials)
+9. [Environment Variables](#9-environment-variables)
+10. [Sharing the App (ngrok / LAN)](#10-sharing-the-app-ngrok--lan)
+11. [AWS Cloud Deployment](#11-aws-cloud-deployment)
+12. [Windows Firewall & Ports](#12-windows-firewall--ports)
+13. [Auto-Start on Boot](#13-auto-start-on-boot)
 14. [Troubleshooting](#14-troubleshooting)
-15. [Directory Structure Reference](#15-directory-structure-reference)
+15. [Directory Structure](#15-directory-structure)
+16. [Quick-Start Checklist](#16-quick-start-checklist)
 
 ---
 
 ## 1. System Requirements
 
-### Minimum (Ollama local LLM — llama3.2:3b)
+### Option A — Ollama (local LLM, no internet needed after setup)
 
 | Component | Minimum | Recommended |
 |---|---|---|
 | **OS** | Windows 11 Home/Pro 22H2+ | Windows 11 Pro 23H2+ |
-| **CPU** | 4-core x64 (Intel/AMD) | 8-core x64 |
+| **CPU** | 4-core x64 | 8-core x64 |
 | **RAM** | 8 GB | 16 GB |
-| **Disk (free space)** | 12 GB | 20 GB |
-| **GPU** | Not required | NVIDIA GPU with 6 GB VRAM (speeds up LLM significantly) |
-| **Network** | Required during setup only | — |
+| **Disk (free)** | 12 GB | 20 GB |
+| **GPU** | Not required | NVIDIA 6 GB VRAM (speeds up LLM) |
+| **Network** | Setup only | — |
 
-> **Why 12 GB disk?**
-> The `llama3.2:3b` Ollama model is ~2 GB. Python packages ~500 MB. DuckDB + SQLite databases are small (< 50 MB). Leave headroom for logs and growth.
+### Option B — Claude API (recommended for demos, needs internet)
 
-### Minimum (Claude API — no local LLM)
+| Component | Minimum |
+|---|---|
+| **RAM** | 4 GB |
+| **Disk (free)** | 2 GB |
+| **Network** | Always-on internet |
+| **Anthropic API key** | Required — get one at https://console.anthropic.com |
 
-| Component | Minimum | Recommended |
-|---|---|---|
-| **RAM** | 4 GB | 8 GB |
-| **Disk (free space)** | 2 GB | 5 GB |
-| **Network** | Always-on internet required | — |
-| **Anthropic API key** | Required | — |
-
-> Use Claude API mode if the machine has limited RAM or no GPU. See [Section 11](#11-switching-to-claude-api-production-llm).
+> Claude API gives better query accuracy and requires no local model download.
+> See [Section 5.2](#52-option-b--claude-api-recommended) to enable it.
 
 ---
 
 ## 2. Software Prerequisites
 
-Install the following in order. Each section includes the exact download source and verification command.
-
 ### 2.1 Python 3.11 or later
-
-The app was built and tested on **Python 3.13**. Python 3.11+ is required.
 
 **Download:** https://www.python.org/downloads/windows/
 Choose the latest **Python 3.13.x Windows installer (64-bit)**.
 
-**During installation — critical settings:**
-- Check **"Add Python to PATH"** (checkbox at the bottom of the first screen)
+**During installation:**
+- Check **"Add Python to PATH"** on the first screen
 - Click **"Install Now"**
 
 **Verify:**
 ```
 python --version
-```
-Expected output: `Python 3.13.x` (or 3.11 / 3.12)
-
-```
 pip --version
 ```
-Expected output: `pip 25.x from ...`
 
 ---
 
-### 2.2 Git (for cloning the repository)
+### 2.2 Git
 
-**Download:** https://git-scm.com/download/win
-Use all default options during install.
+**Download:** https://git-scm.com/download/win — use all default options.
 
 **Verify:**
 ```
 git --version
 ```
 
-> If you already have the project as a ZIP file, Git is not required — skip to Section 3.
+> If you have the project as a ZIP, skip this — extract and go to Section 4.
 
 ---
 
-### 2.3 Ollama (local LLM runtime)
+### 2.3 Node.js 20+ (for React frontend build)
 
-Ollama runs the `llama3.2:3b` language model locally. This is the default LLM the app uses to understand natural language queries.
+**Download:** https://nodejs.org — choose the **LTS** version.
 
-**Download:** https://ollama.com/download
-Run the installer. Ollama installs as a Windows service and starts automatically.
+**Verify:**
+```
+node --version
+npm --version
+```
+
+> Node is only needed once to build the React frontend. It does not need to run permanently.
+
+---
+
+### 2.4 Ollama (only if using local LLM — skip if using Claude API)
+
+**Download:** https://ollama.com/download — run the installer.
+Ollama installs as a Windows service and starts automatically.
 
 **Verify:**
 ```
 ollama --version
-```
-Expected output: `ollama version 0.x.x`
-
-**Check Ollama is running:**
-```
 ollama list
 ```
-If Ollama is not running, start it manually:
-```
-ollama serve
-```
-
-> Ollama listens on `http://localhost:11434` by default. Keep this port free.
 
 ---
 
-## 3. Project Setup
+## 3. Clone the Repository
 
-### Option A — Clone from Git
-
-Open **Command Prompt** or **PowerShell** and run:
+Open **PowerShell** or **Command Prompt** and run:
 
 ```
-git clone <your-repo-url> C:\ProgramData\projects\convAI-multi-tenant-cubejs
-cd C:\ProgramData\projects\convAI-multi-tenant-cubejs
+git clone https://github.com/varunmundas-de-stack/convAI-multi-tenant-cubejs.git
+cd convAI-multi-tenant-cubejs
 ```
 
-### Option B — Copy from ZIP / USB
+> If you received the project as a ZIP, extract it and `cd` into the folder instead.
 
-Extract the project to:
+After cloning, confirm these folders exist:
 ```
-C:\ProgramData\projects\convAI-multi-tenant-cubejs\
-```
-
-Confirm the folder contains these items:
-```
-C:\ProgramData\projects\convAI-multi-tenant-cubejs\
-├── frontend\
-├── database\
-├── semantic_layer\
-├── llm\
-├── insights\
-├── query_engine\
-├── security\
-├── requirements.txt
-└── start_chatbot.bat
+frontend\
+frontend_react\
+database\
+semantic_layer\
+llm\
+insights\
+query_engine\
+security\
+config\
+aws-deploy\
+docs\
+scripts\
 ```
 
 ---
 
 ## 4. Python Environment
 
-All commands below assume your working directory is the project root.
+All commands below run from the project root folder.
 
-```
-cd C:\ProgramData\projects\convAI-multi-tenant-cubejs
-```
-
-### 4.1 (Recommended) Create a virtual environment
+### 4.1 Create a virtual environment
 
 ```
 python -m venv venv
 venv\Scripts\activate
 ```
 
-Your prompt should now show `(venv)` at the start.
+Your prompt should now show `(venv)`. Re-run `venv\Scripts\activate` any time you open a new terminal.
 
-> Use the virtual environment for every subsequent step. If you open a new terminal later, re-activate with `venv\Scripts\activate` before running anything.
-
-### 4.2 Install core dependencies
+### 4.2 Install all dependencies
 
 ```
 pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-This installs:
+This installs everything — Flask, DuckDB, Ollama client, Claude API client, auth packages, and test tools.
 
-| Package | Purpose |
-|---|---|
-| `flask>=3.0.0` | Web framework |
-| `duckdb>=0.9.0` | Analytics database |
-| `ollama>=0.1.0` | Ollama Python client |
-| `pydantic>=2.5.0` | Data validation / schemas |
-| `pyyaml>=6.0.1` | Client YAML config loading |
-| `rich>=13.7.0` | Terminal output formatting |
-| `python-dateutil>=2.8.2` | Date parsing for queries |
-| `anthropic>=0.18.0` | Claude API client (optional) |
-| `pytest>=7.0.0` | Test runner |
-
-### 4.3 Install authentication dependencies
-
-These are not in `requirements.txt` and must be installed separately:
-
+**Verify key packages:**
 ```
-pip install flask-login bcrypt werkzeug
+pip list | findstr /I "flask duckdb ollama bcrypt anthropic"
 ```
-
-### 4.4 Verify all packages installed
-
-```
-pip list | findstr /I "flask duckdb ollama bcrypt pydantic"
-```
-
-You should see rows for each of these packages.
 
 ---
 
-## 5. Ollama LLM Setup
+## 5. LLM Setup
 
-### 5.1 Pull the llama3.2:3b model
+The app supports two LLM backends. Choose one.
 
-This downloads ~2 GB. Run once — it caches locally.
+### 5.1 Option A — Ollama (local, offline)
 
+**Pull the model (~2 GB download, runs once):**
 ```
 ollama pull llama3.2:3b
 ```
 
-Wait for the download to complete. You will see a progress bar.
-
-**Verify the model is available:**
+**Verify:**
 ```
 ollama list
 ```
-Expected output includes a row with `llama3.2:3b`.
+You should see `llama3.2:3b` listed.
 
-### 5.2 Test the model works
-
+**Test it:**
 ```
 ollama run llama3.2:3b "Say hello in one sentence"
 ```
 
-You should get a short response. Press `Ctrl+C` to exit the interactive mode.
-
-### 5.3 Keep Ollama running
-
-Ollama installs as a background Windows service. It starts automatically on boot.
-
-To confirm it is running:
+**Keep Ollama running** (it installs as a Windows service — starts automatically on boot):
 ```
 curl http://localhost:11434
 ```
-Expected response: `Ollama is running`
+Expected: `Ollama is running`
 
-If it is not running, start it:
+If not running, start it manually:
 ```
 ollama serve
 ```
-Leave this terminal open (or run it minimised).
+
+---
+
+### 5.2 Option B — Claude API (recommended)
+
+No model download needed. Requires an Anthropic API key.
+
+1. Get your API key: https://console.anthropic.com → API Keys → Create Key
+
+2. Set the environment variables before starting the app:
+   ```
+   set USE_CLAUDE_API=true
+   set ANTHROPIC_API_KEY=sk-ant-your-key-here
+   ```
+
+3. Ollama does **not** need to be installed when using this option.
+
+> Cost: ~$0.01–$0.05 per query. For light demo usage, typically under $1/day.
 
 ---
 
 ## 6. Database Initialisation
 
-This step creates two databases:
-- `database\users.db` — SQLite file for users, roles, and insights
-- `database\cpg_multi_tenant.duckdb` — DuckDB file with 3 tenant schemas (Nestle, Unilever, ITC) and sample sales data
-
-Run both scripts from the project root with the virtual environment active:
+This step creates two database files. Run it once on first setup.
 
 ```
-cd C:\ProgramData\projects\convAI-multi-tenant-cubejs
+cd convAI-multi-tenant-cubejs
 venv\Scripts\activate
 ```
 
-### 6.1 Create the user + insights database
+### 6.1 Create the users and insights database
 
 ```
 python database\create_user_db.py
 ```
 
-Expected output ends with:
+Expected output:
 ```
-[OK] User database created successfully!
-[OK] Database created at: ...database\users.db
+[OK] User database created at: ...database\users.db
 ```
 
-### 6.2 Create the analytics database with tenant schemas
+### 6.2 Create the analytics database with tenant data
 
 ```
 python database\create_multi_schema_demo.py
 ```
 
-This creates three isolated DuckDB schemas:
-- `client_nestle` — Nestlé India sales data
-- `client_unilever` — Unilever India sales data
-- `client_itc` — ITC Limited sales data
+This creates `database\cpg_multi_tenant.duckdb` with three isolated schemas:
+- `client_nestle` — Nestlé India sample sales data
+- `client_unilever` — Unilever India sample sales data
+- `client_itc` — ITC Limited sample sales data
 
-Expected output ends with:
+Expected output:
 ```
 [OK] Multi-tenant database created at: ...database\cpg_multi_tenant.duckdb
-[OK] File size: ... KB
 ```
 
-### 6.3 Verify databases exist
+### 6.3 Verify
 
 ```
 dir database\*.db database\*.duckdb
 ```
 
-You should see both files listed.
+Both files should appear.
 
 ---
 
-## 7. Client Config Verification
+## 7. Starting the Application
 
-The semantic layer uses per-client YAML config files to know which DuckDB schema and metrics to expose. These should already exist in the project.
-
-**Check they exist:**
-```
-dir semantic_layer\configs\
-```
-
-Expected files:
-```
-client_nestle.yaml
-client_unilever.yaml
-client_itc.yaml
-```
-
-If the `configs\` folder is missing or empty, recreate it:
+### 7.1 Build the React frontend (first time only)
 
 ```
-mkdir semantic_layer\configs
-copy semantic_layer\config_cpg.yaml semantic_layer\configs\client_nestle.yaml
-copy semantic_layer\config_cpg.yaml semantic_layer\configs\client_unilever.yaml
-copy semantic_layer\config_cpg.yaml semantic_layer\configs\client_itc.yaml
+cd frontend_react
+npm install
+npm run build
+cd ..
 ```
 
-Then open each file and update the `client.id`, `client.name`, and `database.schema` fields to match the tenant (nestle / unilever / itc).
+This compiles the React app into `frontend\static\react\` where Flask serves it.
 
----
+> You only need to re-run this if you make changes to the React source in `frontend_react\src\`.
 
-## 8. Starting the Application
-
-### 8.1 Standard start (recommended)
+### 7.2 Start the Flask app
 
 ```
-cd C:\ProgramData\projects\convAI-multi-tenant-cubejs
 venv\Scripts\activate
 python frontend\app_with_auth.py
 ```
@@ -354,390 +296,346 @@ You will see:
 ============================================================
 CPG Conversational AI Chatbot (RBAC Enabled)
 ============================================================
-Starting Flask server...
 Open your browser and go to: http://localhost:5000
-...
  * Running on http://0.0.0.0:5000
 ```
 
-### 8.2 Open the application
+### 7.3 Open in browser
 
-Open any browser and go to:
 ```
 http://localhost:5000
 ```
 
-You will see the login page. Use any of the credentials from [Section 9](#9-login-credentials-reference).
+The login page will appear.
 
-### 8.3 Using the batch file (quick launch)
+### 7.4 Quick-launch batch file
 
-The project includes a convenience batch file. However, it launches the unauthenticated `app.py`. For the full RBAC-enabled app, use the command above or create your own batch file:
+A convenience script is included in `scripts\`:
 
-Create `start_app.bat` in the project root:
-```bat
-@echo off
-cd /d "%~dp0"
-call venv\Scripts\activate
-python frontend\app_with_auth.py
-pause
+```
+scripts\start_chatbot.bat
 ```
 
-Double-click `start_app.bat` to launch.
+Double-click it or run from PowerShell. It activates the venv and starts the app automatically.
 
 ---
 
-## 9. Login Credentials Reference
+## 8. Login Credentials
 
-All sample users are created by `database\create_user_db.py`.
+All users are created by `database\create_user_db.py`.
 
-### Standard (non-hierarchy) users
+### Standard users
 
-| Username | Password | Client | Role |
+| Username | Password | Tenant | Role |
 |---|---|---|---|
-| `nestle_admin` | `admin123` | Nestlé India | Admin |
+| `nestle_admin` | `admin123` | Nestlé India | Admin — full access |
 | `nestle_analyst` | `analyst123` | Nestlé India | Analyst |
 | `unilever_admin` | `admin123` | Unilever India | Admin |
 | `unilever_analyst` | `analyst123` | Unilever India | Analyst |
 | `itc_admin` | `admin123` | ITC Limited | Admin |
 | `itc_analyst` | `analyst123` | ITC Limited | Analyst |
 
-### Sales hierarchy users (Nestlé — Push Insights enabled)
+### Sales hierarchy users (Nestlé — Insights tab enabled)
 
-These users see the **Targeted Insights** tab on login with role-filtered nudges.
-
-| Username | Password | Role | Scope |
+| Username | Password | Role | Data Scope |
 |---|---|---|---|
 | `nsm_rajesh` | `nsm123` | NSM | Full national view |
 | `zsm_amit` | `zsm123` | ZSM | Zone North only |
 | `asm_rahul` | `asm123` | ASM | Area ZSM01_ASM1 only |
 | `so_field1` | `so123` | SO | Territory ZSM01_ASM1_SO01 only |
 
-> **Row-Level Security is enforced.** Each user only sees data for their assigned territory, area, zone, or nation. They cannot query data outside their scope.
+> Row-Level Security is enforced — each user can only query data within their assigned scope.
 
 ---
 
-## 10. Environment Variables (Optional)
+## 9. Environment Variables
 
-You can configure the app behaviour using environment variables. Set them in the terminal before starting the app, or add them to a `.env` file (Flask does not auto-load `.env` — set them in the shell or in System Properties).
-
-### Setting in Command Prompt
-
-```
-set FLASK_SECRET_KEY=change-this-to-a-long-random-string
-set USE_CLAUDE_API=false
-set ANTHROPIC_API_KEY=sk-ant-...
-set ANONYMIZE_SCHEMA=false
-```
-
-### Setting permanently (System Properties)
-
-1. Open **Start → Search → "Edit the system environment variables"**
-2. Click **Environment Variables**
-3. Under **System variables**, click **New** for each variable
-
-### Variable reference
+Set these in the terminal before starting the app, or add to Windows System Environment Variables.
 
 | Variable | Default | Description |
 |---|---|---|
-| `FLASK_SECRET_KEY` | `dev-secret-key-change-in-production` | Flask session signing key. **Change this in production.** |
-| `USE_CLAUDE_API` | `false` | Set to `true` to use Claude API instead of Ollama |
-| `ANTHROPIC_API_KEY` | _(none)_ | Required if `USE_CLAUDE_API=true` |
-| `ANONYMIZE_SCHEMA` | `false` | Anonymise schema names before sending to external LLM |
+| `FLASK_SECRET_KEY` | `dev-secret-key-change-in-production` | Flask session signing key. **Always change in production.** |
+| `USE_CLAUDE_API` | `false` | Set `true` to use Claude API instead of Ollama |
+| `ANTHROPIC_API_KEY` | _(none)_ | Required when `USE_CLAUDE_API=true` |
+| `ANONYMIZE_SCHEMA` | `false` | Anonymise DB schema names before sending to external LLM |
+
+**Set in PowerShell:**
+```powershell
+$env:FLASK_SECRET_KEY = "your-long-random-secret"
+$env:USE_CLAUDE_API = "true"
+$env:ANTHROPIC_API_KEY = "sk-ant-your-key-here"
+```
+
+**Set permanently (Windows):**
+1. Start → search "Edit the system environment variables"
+2. Click **Environment Variables** → **New** under System variables
 
 ---
 
-## 11. Switching to Claude API (Production LLM)
+## 10. Sharing the App (ngrok / LAN)
 
-By default the app uses **Ollama + llama3.2:3b** locally. For better query accuracy and to avoid needing Ollama or a large model download, you can switch to the **Claude API**.
+### Option A — ngrok (share publicly via URL, works from anywhere)
 
-### Requirements
+Useful for remote demos where attendees are not on the same network.
 
-- Anthropic account with API access
-- `ANTHROPIC_API_KEY` environment variable set
-- Always-on internet connection
-
-### Steps
-
-1. Get your API key from https://console.anthropic.com/
-
-2. Set the environment variable:
+1. Download ngrok: https://ngrok.com/download (or `winget install ngrok.ngrok`)
+2. Sign up free at https://dashboard.ngrok.com and get your authtoken
+3. Configure:
    ```
-   set USE_CLAUDE_API=true
-   set ANTHROPIC_API_KEY=sk-ant-your-key-here
+   ngrok config add-authtoken YOUR_TOKEN
    ```
-
-3. Start the app normally:
+4. Start the app on port 5000, then in a second terminal:
    ```
-   python frontend\app_with_auth.py
+   ngrok http 5000
    ```
+5. Share the `https://xxxx.ngrok-free.app` URL with attendees
 
-The app will use Claude (currently defaults to `claude-sonnet-4-6`) for all NL→SQL intent parsing. Ollama does not need to be installed.
+> The ngrok window must stay open for the URL to work. Free tier generates a new random URL on each restart.
 
-> **Cost note:** Each user query makes one Claude API call. For internal demos and light usage, cost is typically < $1/day. For production usage, monitor your Anthropic usage dashboard.
+### Option B — LAN IP (in-room demo, same Wi-Fi)
+
+No extra software needed. Everyone on the same network accesses via your machine's IP.
+
+1. Find your IP:
+   ```
+   ipconfig
+   ```
+   Look for **IPv4 Address** (e.g. `192.168.1.100`)
+
+2. Share: `http://192.168.1.100:5000`
+
+3. Allow port 5000 through Windows Firewall (see [Section 12](#12-windows-firewall--ports))
 
 ---
 
-## 12. Windows Firewall & Port Reference
+## 11. AWS Cloud Deployment
 
-| Service | Port | Protocol | When Used |
-|---|---|---|---|
-| Flask (app) | **5000** | TCP | Always — main web interface |
-| Ollama (LLM) | **11434** | TCP | When `USE_CLAUDE_API=false` |
-| Metabase (optional) | **3000** | TCP | If Docker/Metabase is running |
+For a production-grade cloud deployment on AWS EC2, all scripts are in `aws-deploy\`.
 
-### Allowing Flask through Windows Firewall (for LAN access)
+See: [`aws-deploy/README.md`](../aws-deploy/README.md)
 
-If you want other machines on the same network to access the app:
-
-1. Open **Start → Windows Defender Firewall → Advanced Settings**
-2. Click **Inbound Rules → New Rule**
-3. Select **Port**, click Next
-4. Select **TCP**, enter port `5000`, click Next
-5. Select **Allow the connection**, click Next through remaining steps
-6. Name it `CPG Analytics App`, click Finish
-
-Then users on the same network access via:
-```
-http://<this-machine-ip>:5000
-```
-
-Find your machine IP:
-```
-ipconfig
-```
-Look for **IPv4 Address** under your active adapter.
+**Quick summary:**
+- Launch EC2 `t3.medium` (Ubuntu 22.04)
+- Run `aws-deploy/setup.sh` on the instance
+- Set `ANTHROPIC_API_KEY` in `.env`
+- App runs behind Nginx on port 80
+- Cost: ~$33/month
 
 ---
 
-## 13. Auto-Start on Boot (Optional)
+## 12. Windows Firewall & Ports
 
-To have the app start automatically when Windows boots, create a Scheduled Task.
+| Service | Port | When used |
+|---|---|---|
+| Flask app | **5000** | Always |
+| Ollama LLM | **11434** | When `USE_CLAUDE_API=false` |
 
-### Method: Task Scheduler
+### Allow port 5000 for LAN access
 
-1. Create a file `start_cpg_app.bat` in the project root:
+1. Start → **Windows Defender Firewall → Advanced Settings**
+2. **Inbound Rules → New Rule → Port → TCP → 5000**
+3. Allow the connection → name it `CPG Analytics App`
+
+---
+
+## 13. Auto-Start on Boot
+
+Create `start_cpg_app.bat` in the project root:
 
 ```bat
 @echo off
-cd /d "C:\ProgramData\projects\convAI-multi-tenant-cubejs"
+cd /d "C:\path\to\convAI-multi-tenant-cubejs"
 call venv\Scripts\activate
 set FLASK_SECRET_KEY=your-secret-key-here
 python frontend\app_with_auth.py >> logs\app.log 2>&1
 ```
 
-2. Create the logs directory:
+Create the logs folder:
 ```
-mkdir C:\ProgramData\projects\convAI-multi-tenant-cubejs\logs
+mkdir logs
 ```
 
-3. Open **Task Scheduler** (search in Start menu)
-4. Click **Create Basic Task**
-5. Name: `CPG Analytics App`
-6. Trigger: **When the computer starts**
-7. Action: **Start a program**
-8. Program: `C:\ProgramData\projects\convAI-multi-tenant-cubejs\start_cpg_app.bat`
-9. Check **Run with highest privileges**
-10. Click Finish
-
-> Ollama installs its own Windows service and starts automatically — no extra config needed for Ollama on boot.
+Then add it to **Task Scheduler**:
+1. Start → **Task Scheduler → Create Basic Task**
+2. Name: `CPG Analytics App`
+3. Trigger: **When the computer starts**
+4. Action: **Start a program** → browse to `start_cpg_app.bat`
+5. Check **Run with highest privileges** → Finish
 
 ---
 
 ## 14. Troubleshooting
 
-### App crashes on start with `sqlite3.OperationalError: unable to open database file`
-
-**Cause:** Databases have not been created yet, or paths are wrong.
-
-**Fix:**
+### `sqlite3.OperationalError: unable to open database file`
+Databases not created yet.
 ```
-cd C:\ProgramData\projects\convAI-multi-tenant-cubejs
 python database\create_user_db.py
 python database\create_multi_schema_demo.py
 ```
 
----
-
-### `ModuleNotFoundError: No module named 'flask_login'` or `'bcrypt'`
-
-**Cause:** Auth packages not installed.
-
-**Fix:**
-```
-pip install flask-login bcrypt werkzeug
-```
-
----
-
-### `ModuleNotFoundError: No module named 'ollama'`
-
-**Cause:** `requirements.txt` not installed, or wrong Python environment.
-
-**Fix:**
+### `ModuleNotFoundError: No module named 'flask_login'`
 ```
 pip install -r requirements.txt
 ```
-If using a virtual environment, make sure it is activated first: `venv\Scripts\activate`
 
----
-
-### Login returns 500 error / server crashes
-
-**Cause:** Often the virtual environment is not activated, or a package is missing.
-
-**Fix:** Start a fresh terminal, re-activate the venv, then start the app:
+### Login returns 500 error
+Virtual environment not active. Start fresh:
 ```
-cd C:\ProgramData\projects\convAI-multi-tenant-cubejs
 venv\Scripts\activate
 python frontend\app_with_auth.py
 ```
 
----
-
-### Ollama not found / `Connection refused` on port 11434
-
-**Cause:** Ollama is not running.
-
-**Fix:**
+### `Connection refused` on port 11434 (Ollama)
 ```
 ollama serve
 ```
-Leave that terminal open, then start the Flask app in a separate terminal.
+Leave that terminal open, then start Flask in a second terminal.
 
----
-
-### Queries return `LLM unavailable` or fallback responses
-
-**Cause:** Ollama is running but the model has not been pulled, or Ollama is unreachable.
-
-**Fix:**
-```
-ollama pull llama3.2:3b
-ollama list
-```
-Confirm `llama3.2:3b` appears in the list.
-
----
-
-### "No insights yet" in the Targeted Insights tab
-
-**Cause:** The background insights thread runs 10 seconds after startup, then every 6 hours. It may not have run yet, or the analytics database is empty.
-
-**Fix:** Wait 15–30 seconds after starting the app, then refresh the Insights tab. If still empty, check the terminal output for `[Insights]` log lines and any errors.
-
----
+### Insights tab is empty
+Wait 15–30 seconds after app starts — insights are generated in a background thread.
+Check terminal for `[Insights]` log lines.
 
 ### Port 5000 already in use
-
-**Cause:** Another process is using port 5000 (e.g. AirPlay Receiver on older Windows builds, or another Flask instance).
-
-**Fix — find and kill the process:**
 ```
 netstat -ano | findstr :5000
-taskkill /PID <pid-from-above> /F
+taskkill /PID <pid> /F
 ```
-
-Or change the Flask port in `frontend\app_with_auth.py` (last line):
+Or change the port in the last line of `frontend\app_with_auth.py`:
 ```python
 app.run(debug=True, host='0.0.0.0', port=5001, use_reloader=False)
 ```
 
----
-
-### `bcrypt` install fails on Python 3.13
-
-**Cause:** Some versions of bcrypt do not have pre-built wheels for Python 3.13.
-
-**Fix:**
-```
-pip install bcrypt --pre
-```
-Or install the latest release candidate:
+### `bcrypt` fails to install on Python 3.13
 ```
 pip install "bcrypt>=4.1.0"
 ```
 
+### React frontend not loading (blank page / 404 on `/`)
+The React build hasn't been run yet:
+```
+cd frontend_react
+npm install
+npm run build
+cd ..
+```
+
 ---
 
-## 15. Directory Structure Reference
+## 15. Directory Structure
 
 ```
 convAI-multi-tenant-cubejs\
 │
-├── frontend\                    # Flask web application
-│   ├── app_with_auth.py         # Main app — ALWAYS use this (RBAC-enabled)
-│   ├── app.py                   # Legacy app (no auth) — do not use in production
-│   ├── visualization_helper.py  # Chart rendering helpers
-│   ├── static\
-│   │   └── chart-renderer.js    # Client-side chart utilities
-│   └── templates\
-│       ├── login.html           # Login page
-│       └── chat.html            # Main chatbot UI (two-pillar layout)
+├── frontend\                        # Flask web application
+│   ├── app_with_auth.py             # Main app entry point (RBAC-enabled)
+│   └── static\
+│       └── react\                   # Built React frontend (generated by npm run build)
 │
-├── database\                    # Database scripts and data files
-│   ├── create_user_db.py        # Creates users.db (SQLite)
+├── frontend_react\                  # React source code
+│   ├── src\
+│   │   ├── components\              # ChatTab, DashboardTab, InsightsTab, etc.
+│   │   ├── pages\                   # LoginPage, DashboardPage
+│   │   └── api\client.js            # API client
+│   ├── package.json
+│   └── vite.config.js
+│
+├── database\                        # Database scripts and files
+│   ├── create_user_db.py            # Creates users.db
 │   ├── create_multi_schema_demo.py  # Creates cpg_multi_tenant.duckdb
-│   ├── users.db                 # ← CREATED on first run
-│   └── cpg_multi_tenant.duckdb  # ← CREATED on first run
+│   ├── generate_cpg_data.py         # Sample data generator
+│   ├── multi_db_manager.py          # Multi-DB connection manager
+│   ├── schema_cpg.sql               # CPG schema reference
+│   ├── users.db                     # ← created on first run
+│   └── cpg_multi_tenant.duckdb      # ← created on first run
 │
-├── semantic_layer\              # NL → SQL translation layer
-│   ├── semantic_layer.py        # Core semantic layer
-│   ├── query_builder.py         # SQL query construction
-│   ├── orchestrator.py          # Query orchestration
-│   ├── validator.py             # Query validation
-│   ├── config_cpg.yaml          # Master config template
-│   └── configs\                 # Per-tenant configs
+├── semantic_layer\                  # NL → SQL translation
+│   ├── semantic_layer.py
+│   ├── query_builder.py
+│   ├── orchestrator.py
+│   ├── validator.py
+│   ├── config_cpg.yaml              # Master config template
+│   └── configs\                     # Per-tenant configs
 │       ├── client_nestle.yaml
 │       ├── client_unilever.yaml
 │       └── client_itc.yaml
 │
-├── llm\                         # LLM intent parsing
-│   └── intent_parser_v2.py      # Ollama + Claude dual-provider parser
+├── llm\                             # LLM intent parsing
+│   └── intent_parser_v2.py          # Ollama + Claude dual-provider parser
 │
-├── insights\                    # Push insights engine
-│   ├── hierarchy_insights_engine.py  # Generates role-targeted nudges
-│   └── push_insights_engine.py
+├── insights\                        # Targeted insights engine
+│   └── hierarchy_insights_engine.py
 │
-├── query_engine\                # SQL execution layer
-│   ├── executor.py              # DuckDB query execution with RLS
-│   └── query_validator.py       # Query safety validation
+├── query_engine\                    # SQL execution
+│   ├── executor.py
+│   └── query_validator.py
 │
-├── security\                    # Auth and access control
-│   ├── auth.py                  # AuthManager (bcrypt login)
-│   ├── rls.py                   # Row-Level Security enforcement
-│   └── audit.py                 # Audit logging
+├── security\                        # Auth and access control
+│   ├── auth.py
+│   ├── rls.py                       # Row-Level Security
+│   └── audit.py
 │
-├── requirements.txt             # Python dependencies
-├── start_chatbot.bat            # Quick-launch (legacy, no auth)
-├── setup_rbac.bat               # One-time setup helper
-└── DEPLOYMENT_GUIDE.md          # This file
+├── config\
+│   └── database_config.yaml         # Multi-tenant DB connection config
+│
+├── aws-deploy\                      # AWS EC2 deployment scripts
+│   ├── setup.sh                     # One-time EC2 setup
+│   ├── deploy.sh                    # Re-deploy after code changes
+│   ├── docker-compose.prod.yml      # Production Docker config
+│   ├── nginx.conf                   # Nginx reverse proxy config
+│   └── README.md                    # AWS deployment guide
+│
+├── docs\                            # Documentation
+│   ├── DEPLOYMENT_GUIDE.md          # This file
+│   ├── ARCHITECTURE.md
+│   ├── SETUP_GUIDE.md
+│   └── MULTI_DB_SETUP.md
+│
+├── scripts\                         # Utility scripts
+│   ├── start_chatbot.bat            # Quick-launch the app
+│   ├── setup_rbac.bat               # One-time RBAC setup helper
+│   └── explore_db.bat               # Database explorer
+│
+├── tests\
+│   └── test_anonymization.py
+│
+├── Dockerfile                       # Docker image build
+├── docker-compose.yml               # Local Docker (with Ollama)
+└── requirements.txt                 # Python dependencies
 ```
 
 ---
 
-## Quick-Start Checklist
+## 16. Quick-Start Checklist
 
-Use this as a final checklist before going live:
+Use this before going live or handing off to someone new.
 
-- [ ] Windows 11 machine with 8+ GB RAM
+**Environment:**
+- [ ] Windows 11, 8+ GB RAM (or 4 GB if using Claude API)
 - [ ] Python 3.11+ installed and on PATH
-- [ ] `pip install -r requirements.txt` completed
-- [ ] `pip install flask-login bcrypt werkzeug` completed
-- [ ] Ollama installed and `ollama serve` is running
-- [ ] `ollama pull llama3.2:3b` completed
+- [ ] Node.js 20+ installed (for React build)
+- [ ] Git installed
+
+**Setup:**
+- [ ] Repo cloned from https://github.com/varunmundas-de-stack/convAI-multi-tenant-cubejs
+- [ ] `venv\Scripts\activate` active
+- [ ] `pip install -r requirements.txt` completed successfully
+- [ ] React built: `cd frontend_react && npm install && npm run build`
 - [ ] `python database\create_user_db.py` ran successfully
 - [ ] `python database\create_multi_schema_demo.py` ran successfully
 - [ ] `database\users.db` exists
 - [ ] `database\cpg_multi_tenant.duckdb` exists
-- [ ] `semantic_layer\configs\client_nestle.yaml` exists
-- [ ] `semantic_layer\configs\client_unilever.yaml` exists
-- [ ] `semantic_layer\configs\client_itc.yaml` exists
-- [ ] `FLASK_SECRET_KEY` set to a secure value
+
+**LLM (choose one):**
+- [ ] Ollama: `ollama pull llama3.2:3b` done and `ollama serve` is running
+- [ ] Claude API: `USE_CLAUDE_API=true` and `ANTHROPIC_API_KEY` set
+
+**Verification:**
 - [ ] `python frontend\app_with_auth.py` starts without errors
 - [ ] Browser opens `http://localhost:5000` and shows login page
 - [ ] Login with `nestle_admin / admin123` succeeds
-- [ ] Insights tab loads (may take 15 sec on first run)
-- [ ] Chat tab accepts a query and returns a response
+- [ ] Chat tab: `"What are total sales?"` returns a number
+- [ ] Insights tab loads (wait 15 sec on first start)
+- [ ] Dashboard tab loads with charts
 
 ---
 

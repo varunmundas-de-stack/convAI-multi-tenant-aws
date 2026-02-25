@@ -90,13 +90,6 @@ module.exports = {
   // ──────────────────────────────────────────────────────────────────────────
   schemaPath: 'schema',
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // API port
-  // ──────────────────────────────────────────────────────────────────────────
-  http: {
-    port: 4000,
-  },
-
   // Development logger — set to false in production
   logger: (msg, params) => {
     if (process.env.NODE_ENV !== 'production') {

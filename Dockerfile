@@ -5,7 +5,7 @@ FROM node:20-alpine AS react-build
 
 WORKDIR /app/frontend_react
 COPY frontend_react/package*.json ./
-RUN npm ci --silent
+RUN npm install --silent
 
 COPY frontend_react/ ./
 RUN npm run build

@@ -45,4 +45,4 @@ RUN chmod +x database/init_db.sh
 EXPOSE 5000
 
 # Entrypoint: dispatch DB init (DuckDB or PostgreSQL), then start Flask
-CMD ["sh", "-c", "database/init_db.sh && python frontend/app_with_auth.py"]
+CMD ["sh", "-c", "sh database/init_db.sh && python frontend/app_with_auth.py"]

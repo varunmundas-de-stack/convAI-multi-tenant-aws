@@ -89,7 +89,7 @@ info "Nginx configured on port 80"
 section "6. Build and start Docker containers"
 cd "$REPO_DIR"
 # Use newgrp trick to pick up docker group without re-login
-sg docker -c "docker compose -f aws-deploy/docker-compose.prod.yml up -d --build"
+sg docker -c "docker compose -f aws-deploy/docker-compose.prod.yml --env-file .env up -d --build"
 
 section "7. Set Docker containers to start on boot"
 sudo systemctl enable docker

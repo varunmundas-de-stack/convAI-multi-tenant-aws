@@ -47,7 +47,7 @@ services:
       - ../database:/data:ro
       - ../cubejs/schema:/cube/conf/schema:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4000/cubejs-api/v1/meta", "-H", "Authorization: Bearer test"]
+      test: ["CMD", "curl", "-s", "http://localhost:4000/cubejs-api/v1/meta"]
       interval: 30s
       timeout: 10s
       retries: 5

@@ -38,12 +38,11 @@ COPY --from=react-build /app/frontend/static/react ./frontend/static/react
 # Create data directories
 RUN mkdir -p database
 
+# Make init script executable
+RUN chmod +x database/init_db.sh
+
 # Expose Flask port
 EXPOSE 5000
 
-# Entrypoint: initialise DBs if not present, then start Flask
-CMD ["sh", "-c", "\
-  [ -f database/users.db ]              || python database/create_user_db.py; \
-  [ -f database/cpg_multi_tenant.duckdb ] || python database/create_multi_schema_demo.py; \
-  python frontend/app_with_auth.py \
-"]
+# Entrypoint: dispatch DB init (DuckDB or PostgreSQL), then start Flask
+CMD ["sh", "-c", "database/init_db.sh && python frontend/app_with_auth.py"]

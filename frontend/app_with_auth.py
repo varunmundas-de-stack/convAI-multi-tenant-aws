@@ -30,6 +30,51 @@ import traceback
 import threading
 from insights.hierarchy_insights_engine import HierarchyInsightsEngine
 
+_DB_ENGINE = os.getenv('DB_ENGINE', 'duckdb').lower()
+
+
+class _PgConn:
+    """Thin psycopg2 wrapper that mimics the DuckDB connection interface."""
+
+    class _Result:
+        def __init__(self, cur):
+            self._cur = cur
+
+        def fetchone(self):
+            return self._cur.fetchone()
+
+        def fetchall(self):
+            return self._cur.fetchall()
+
+    def __init__(self, conn):
+        self._conn = conn
+
+    def execute(self, sql: str) -> '_Result':
+        cur = self._conn.cursor()
+        cur.execute(sql)
+        return self._Result(cur)
+
+    def close(self):
+        self._conn.close()
+
+
+def _get_analytics_conn(client_id: str):
+    """Return a DuckDB or PostgreSQL connection for analytics queries."""
+    if _DB_ENGINE == 'postgresql':
+        import psycopg2
+        conn = psycopg2.connect(
+            host=os.getenv('POSTGRES_HOST', 'postgres'),
+            port=int(os.getenv('POSTGRES_PORT', '5432')),
+            dbname=os.getenv('POSTGRES_DB', 'cpg_analytics'),
+            user=os.getenv('POSTGRES_USER', 'postgres'),
+            password=os.getenv('POSTGRES_PASSWORD', ''),
+        )
+        return _PgConn(conn)
+    import duckdb
+    client_config = auth_manager.get_client_config(client_id)
+    db_path = str(_APP_ROOT / client_config['database_path'])
+    return duckdb.connect(db_path, read_only=True)
+
 app = Flask(__name__)
 
 # IMPORTANT: Change this in production! Use environment variable
@@ -76,7 +121,10 @@ TENANT_SCHEMAS = {
 
 # Initialize hierarchy insights engine with absolute paths
 insights_engine = HierarchyInsightsEngine(
-    analytics_db_path=str(_APP_ROOT / 'database' / 'cpg_multi_tenant.duckdb'),
+    analytics_db_path=(
+        'postgresql://' if _DB_ENGINE == 'postgresql'
+        else str(_APP_ROOT / 'database' / 'cpg_multi_tenant.duckdb')
+    ),
     users_db_path=str(_APP_ROOT / 'database' / 'users.db'),
 )
 
@@ -790,15 +838,11 @@ def get_dashboard():
     filtered by their sales_hierarchy_key rows only.
     """
     try:
-        import duckdb
-
         schema = TENANT_SCHEMAS.get(current_user.client_id)
         if not schema:
             return jsonify({'error': 'Unknown client'}), 400
 
-        client_config = auth_manager.get_client_config(current_user.client_id)
-        db_path = str(_APP_ROOT / client_config['database_path'])
-        con = duckdb.connect(db_path, read_only=True)
+        con = _get_analytics_conn(current_user.client_id)
 
         # ── Build RLS WHERE clause ────────────────────────────────────────────
         # Hierarchy-restricted roles filter through dim_sales_hierarchy join
@@ -860,7 +904,7 @@ def get_dashboard():
 
         # ── Sales by Brand (top 8) ────────────────────────────────────────────
         brand_sql = f"""
-            SELECT p.brand_name, CAST(SUM(f.net_value) AS DOUBLE) AS sales
+            SELECT p.brand_name, CAST(SUM(f.net_value) AS FLOAT8) AS sales
             FROM {schema}.fact_secondary_sales f
             JOIN {schema}.dim_product p ON f.product_key = p.product_key
             {rls_join}
@@ -877,7 +921,7 @@ def get_dashboard():
         trend_sql = f"""
             SELECT
                 DATE_TRUNC('week', f.invoice_date)::VARCHAR AS week,
-                CAST(SUM(f.net_value) AS DOUBLE)            AS sales
+                CAST(SUM(f.net_value) AS FLOAT8)            AS sales
             FROM {schema}.fact_secondary_sales f
             {rls_join}
             WHERE f.invoice_date >= CURRENT_DATE - INTERVAL '56' DAY
@@ -891,7 +935,7 @@ def get_dashboard():
 
         # ── Sales by Channel ──────────────────────────────────────────────────
         channel_sql = f"""
-            SELECT c.channel_name, CAST(SUM(f.net_value) AS DOUBLE) AS sales
+            SELECT c.channel_name, CAST(SUM(f.net_value) AS FLOAT8) AS sales
             FROM {schema}.fact_secondary_sales f
             JOIN {schema}.dim_channel c ON f.channel_key = c.channel_key
             {rls_join}
@@ -944,15 +988,11 @@ def dashboard_drilldown():
     safe_val = value.replace("'", "''")
 
     try:
-        import duckdb as _duckdb
-
         schema = TENANT_SCHEMAS.get(current_user.client_id)
         if not schema:
             return jsonify({'error': 'Unknown client'}), 400
 
-        client_config = auth_manager.get_client_config(current_user.client_id)
-        db_path = str(_APP_ROOT / client_config['database_path'])
-        con = _duckdb.connect(db_path, read_only=True)
+        con = _get_analytics_conn(current_user.client_id)
 
         # ── RLS (same logic as /api/dashboard) ───────────────────────────────
         hierarchy_restricted = {'SO', 'ASM', 'ZSM'}
@@ -974,7 +1014,7 @@ def dashboard_drilldown():
         if drill_type == 'brand_skus':
             sql = f"""
                 SELECT p.sku_name                                  AS label,
-                       CAST(SUM(f.net_value)       AS DOUBLE)      AS sales,
+                       CAST(SUM(f.net_value)       AS FLOAT8)      AS sales,
                        COUNT(DISTINCT f.invoice_number)            AS invoices
                 FROM {schema}.fact_secondary_sales f
                 JOIN {schema}.dim_product p ON f.product_key = p.product_key
@@ -989,7 +1029,7 @@ def dashboard_drilldown():
         elif drill_type == 'channel_brands':
             sql = f"""
                 SELECT p.brand_name                                AS label,
-                       CAST(SUM(f.net_value)       AS DOUBLE)      AS sales,
+                       CAST(SUM(f.net_value)       AS FLOAT8)      AS sales,
                        COUNT(DISTINCT f.invoice_number)            AS invoices
                 FROM {schema}.fact_secondary_sales f
                 JOIN {schema}.dim_product  p  ON f.product_key  = p.product_key
@@ -1005,7 +1045,7 @@ def dashboard_drilldown():
         else:  # week_days
             sql = f"""
                 SELECT CAST(f.invoice_date AS VARCHAR)             AS label,
-                       CAST(SUM(f.net_value)       AS DOUBLE)      AS sales,
+                       CAST(SUM(f.net_value)       AS FLOAT8)      AS sales,
                        COUNT(DISTINCT f.invoice_number)            AS invoices
                 FROM {schema}.fact_secondary_sales f
                 {rls_join}

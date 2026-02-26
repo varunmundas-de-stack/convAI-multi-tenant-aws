@@ -8,10 +8,20 @@ module.exports = {
   // Database connection — DuckDB read-only
   // ──────────────────────────────────────────────────────────────────────────
   driverFactory: ({ dataSource }) => {
+    const engine = (process.env.DB_ENGINE || 'duckdb').toLowerCase();
+    if (engine === 'postgresql') {
+      const { PostgresDriver } = require('@cubejs-backend/postgres-driver');
+      return new PostgresDriver({
+        host:     process.env.POSTGRES_HOST     || 'postgres',
+        port:     parseInt(process.env.POSTGRES_PORT || '5432', 10),
+        database: process.env.POSTGRES_DB       || 'cpg_analytics',
+        user:     process.env.POSTGRES_USER     || 'postgres',
+        password: process.env.POSTGRES_PASSWORD || '',
+      });
+    }
     const { DuckDBDriver } = require('@cubejs-backend/duckdb-driver');
     return new DuckDBDriver({
       database: process.env.CUBEJS_DB_DUCKDB_DATABASE_PATH || '/data/cpg_multi_tenant.duckdb',
-      // DuckDB is opened read-only to prevent accidental writes
       readOnly: true,
     });
   },

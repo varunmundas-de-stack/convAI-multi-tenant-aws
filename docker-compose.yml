@@ -18,6 +18,13 @@ services:
       # Cube.js integration
       - CUBEJS_API_SECRET=${CUBEJS_API_SECRET:-change-this-secret-min-32-chars}
       - CUBEJS_URL=http://cubejs:4000
+      # Database engine switch
+      - DB_ENGINE=${DB_ENGINE:-duckdb}
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_DB=${POSTGRES_DB:-cpg_analytics}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-}
     depends_on:
       - ollama
       - cubejs
@@ -48,6 +55,13 @@ services:
       - CUBEJS_DB_TYPE=duckdb
       - CUBEJS_DB_DUCKDB_DATABASE_PATH=/data/cpg_multi_tenant.duckdb
       - NODE_ENV=${NODE_ENV:-development}
+      # Database engine switch
+      - DB_ENGINE=${DB_ENGINE:-duckdb}
+      - POSTGRES_HOST=${POSTGRES_HOST:-postgres}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      - POSTGRES_DB=${POSTGRES_DB:-cpg_analytics}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-}
     volumes:
       # Share the DuckDB file (read-only inside Cube.js)
       - ./database:/data:ro
@@ -55,5 +69,25 @@ services:
       - ./cubejs/schema:/cube/conf/schema:ro
     restart: unless-stopped
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: cpg_postgres
+    profiles:
+      - postgresql
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-cpg_analytics}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-change-this-strong-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-cpg_analytics}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
 volumes:
   ollama_models:
+  postgres_data:

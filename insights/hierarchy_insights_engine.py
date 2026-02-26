@@ -38,6 +38,31 @@ class Insight:
     expires_at: Optional[datetime] = None
 
 
+class _AnalyticsConn:
+    """Thin adapter: makes a psycopg2 connection look like a DuckDB connection."""
+
+    class _Result:
+        def __init__(self, cur):
+            self._cur = cur
+
+        def fetchone(self):
+            return self._cur.fetchone()
+
+        def fetchall(self):
+            return self._cur.fetchall()
+
+    def __init__(self, pg_conn):
+        self._conn = pg_conn
+
+    def execute(self, sql: str) -> '_Result':
+        cur = self._conn.cursor()
+        cur.execute(sql)
+        return self._Result(cur)
+
+    def close(self):
+        self._conn.close()
+
+
 class HierarchyInsightsEngine:
     """
     Generates hierarchy-aware insights from real DuckDB data.
@@ -50,6 +75,27 @@ class HierarchyInsightsEngine:
         self.analytics_db_path = analytics_db_path
         self.users_db_path = users_db_path
 
+    def _open_analytics_conn(self):
+        """Return a DuckDB or psycopg2-backed analytics connection."""
+        if self.analytics_db_path == 'postgresql://':
+            import os
+            import psycopg2
+            conn = psycopg2.connect(
+                host=os.getenv('POSTGRES_HOST', 'postgres'),
+                port=int(os.getenv('POSTGRES_PORT', '5432')),
+                dbname=os.getenv('POSTGRES_DB', 'cpg_analytics'),
+                user=os.getenv('POSTGRES_USER', 'postgres'),
+                password=os.getenv('POSTGRES_PASSWORD', ''),
+            )
+            return _AnalyticsConn(conn)
+        return duckdb.connect(self.analytics_db_path, read_only=True)
+
+    def _interval_days(self, n: int) -> str:
+        """Return a dialect-correct INTERVAL expression for N days."""
+        if self.analytics_db_path == 'postgresql://':
+            return f"INTERVAL '{n} days'"
+        return f"INTERVAL {n} DAY"
+
     # ------------------------------------------------------------------ #
     #  PUBLIC: generate & store for a full tenant                          #
     # ------------------------------------------------------------------ #
@@ -59,7 +105,7 @@ class HierarchyInsightsEngine:
         Generate fresh insights for all hierarchy levels in a tenant.
         Stores results in users.db. Returns count of new insights saved.
         """
-        conn = duckdb.connect(self.analytics_db_path, read_only=True)
+        conn = self._open_analytics_conn()
         all_insights: List[Insight] = []
 
         try:
@@ -95,14 +141,14 @@ class HierarchyInsightsEngine:
                     SELECT SUM(net_value) AS val
                     FROM {schema}.fact_secondary_sales f
                     JOIN {schema}.dim_date d ON f.date_key = d.date_key
-                    WHERE f.invoice_date >= CURRENT_DATE - INTERVAL 7 DAY
+                    WHERE f.invoice_date >= CURRENT_DATE - {self._interval_days(7)}
                 ),
                 prev_wk AS (
                     SELECT SUM(net_value) AS val
                     FROM {schema}.fact_secondary_sales f
                     JOIN {schema}.dim_date d ON f.date_key = d.date_key
-                    WHERE f.invoice_date >= CURRENT_DATE - INTERVAL 14 DAY
-                      AND f.invoice_date < CURRENT_DATE - INTERVAL 7 DAY
+                    WHERE f.invoice_date >= CURRENT_DATE - {self._interval_days(14)}
+                      AND f.invoice_date < CURRENT_DATE - {self._interval_days(7)}
                 )
                 SELECT this_wk.val, prev_wk.val FROM this_wk, prev_wk
             """).fetchone()
@@ -175,7 +221,7 @@ class HierarchyInsightsEngine:
                 WITH daily AS (
                     SELECT f.invoice_date, SUM(f.net_value) AS day_val
                     FROM {schema}.fact_secondary_sales f
-                    WHERE f.invoice_date >= CURRENT_DATE - INTERVAL 30 DAY
+                    WHERE f.invoice_date >= CURRENT_DATE - {self._interval_days(30)}
                     GROUP BY f.invoice_date
                 ),
                 stats AS (SELECT AVG(day_val) AS avg_val, STDDEV(day_val) AS std_val FROM daily),
@@ -240,15 +286,15 @@ class HierarchyInsightsEngine:
                         FROM {schema}.fact_secondary_sales f
                         JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.sales_hierarchy_key
                         WHERE sh.zsm_code = '{zsm_code}'
-                          AND f.invoice_date >= CURRENT_DATE - INTERVAL 7 DAY
+                          AND f.invoice_date >= CURRENT_DATE - {self._interval_days(7)}
                     ),
                     prev_wk AS (
                         SELECT SUM(f.net_value) AS val
                         FROM {schema}.fact_secondary_sales f
                         JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.sales_hierarchy_key
                         WHERE sh.zsm_code = '{zsm_code}'
-                          AND f.invoice_date >= CURRENT_DATE - INTERVAL 14 DAY
-                          AND f.invoice_date < CURRENT_DATE - INTERVAL 7 DAY
+                          AND f.invoice_date >= CURRENT_DATE - {self._interval_days(14)}
+                          AND f.invoice_date < CURRENT_DATE - {self._interval_days(7)}
                     )
                     SELECT this_wk.val, prev_wk.val FROM this_wk, prev_wk
                 """).fetchone()
@@ -390,7 +436,7 @@ class HierarchyInsightsEngine:
                         JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.sales_hierarchy_key
                         JOIN {schema}.dim_product p ON f.product_key = p.product_key
                         WHERE sh.asm_code = '{asm_code}'
-                          AND f.invoice_date >= CURRENT_DATE - INTERVAL 7 DAY
+                          AND f.invoice_date >= CURRENT_DATE - {self._interval_days(7)}
                         GROUP BY p.brand_name
                     ),
                     prev_wk AS (
@@ -399,8 +445,8 @@ class HierarchyInsightsEngine:
                         JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.sales_hierarchy_key
                         JOIN {schema}.dim_product p ON f.product_key = p.product_key
                         WHERE sh.asm_code = '{asm_code}'
-                          AND f.invoice_date >= CURRENT_DATE - INTERVAL 14 DAY
-                          AND f.invoice_date < CURRENT_DATE - INTERVAL 7 DAY
+                          AND f.invoice_date >= CURRENT_DATE - {self._interval_days(14)}
+                          AND f.invoice_date < CURRENT_DATE - {self._interval_days(7)}
                         GROUP BY p.brand_name
                     )
                     SELECT t.brand_name,
@@ -465,15 +511,15 @@ class HierarchyInsightsEngine:
                         FROM {schema}.fact_secondary_sales f
                         JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.sales_hierarchy_key
                         WHERE sh.so_code = '{so_code}'
-                          AND f.invoice_date >= CURRENT_DATE - INTERVAL 7 DAY
+                          AND f.invoice_date >= CURRENT_DATE - {self._interval_days(7)}
                     ),
                     prev_wk AS (
                         SELECT SUM(f.net_value) AS val
                         FROM {schema}.fact_secondary_sales f
                         JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.sales_hierarchy_key
                         WHERE sh.so_code = '{so_code}'
-                          AND f.invoice_date >= CURRENT_DATE - INTERVAL 14 DAY
-                          AND f.invoice_date < CURRENT_DATE - INTERVAL 7 DAY
+                          AND f.invoice_date >= CURRENT_DATE - {self._interval_days(14)}
+                          AND f.invoice_date < CURRENT_DATE - {self._interval_days(7)}
                     )
                     SELECT this_wk.val, prev_wk.val FROM this_wk, prev_wk
                 """).fetchone()

@@ -9,6 +9,7 @@
   "dependencies": {
     "@cubejs-backend/server": "^0.36.0",
     "@cubejs-backend/duckdb-driver": "^0.36.0",
+    "@cubejs-backend/postgres-driver": "^0.36.0",
     "jsonwebtoken": "^9.0.0"
   }
 }

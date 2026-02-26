@@ -1,6 +1,7 @@
 """
-Query Executor - Executes SQL queries against DuckDB
+Query Executor - Executes SQL queries against DuckDB or PostgreSQL
 """
+import os
 import duckdb
 import threading
 import time
@@ -8,6 +9,30 @@ import decimal
 from typing import List, Dict, Any
 from pathlib import Path
 from semantic_layer.models import QueryResult
+
+DB_ENGINE = os.getenv('DB_ENGINE', 'duckdb').lower()
+
+# PostgreSQL connection pool — created lazily on first use
+_pg_pool = None
+_pg_pool_lock = threading.Lock()
+
+
+def _get_pg_pool():
+    global _pg_pool
+    if _pg_pool is None:
+        with _pg_pool_lock:
+            if _pg_pool is None:
+                import psycopg2.pool as _pg_pool_mod
+                _pg_pool = _pg_pool_mod.ThreadedConnectionPool(
+                    minconn=1,
+                    maxconn=5,
+                    host=os.getenv('POSTGRES_HOST', 'postgres'),
+                    port=int(os.getenv('POSTGRES_PORT', '5432')),
+                    dbname=os.getenv('POSTGRES_DB', 'cpg_analytics'),
+                    user=os.getenv('POSTGRES_USER', 'postgres'),
+                    password=os.getenv('POSTGRES_PASSWORD', ''),
+                )
+    return _pg_pool
 
 
 class QueryExecutor:
@@ -19,6 +44,8 @@ class QueryExecutor:
 
     def _get_conn(self):
         """Return (or lazily open) the per-thread DuckDB connection."""
+        if DB_ENGINE == 'postgresql':
+            return None  # PG path uses the pool directly in execute()
         if not self.db_path.exists():
             raise FileNotFoundError(f"Database not found: {self.db_path}")
         conn = getattr(self._local, 'conn', None)
@@ -44,11 +71,21 @@ class QueryExecutor:
         start_time = time.time()
 
         try:
-            result = self._get_conn().execute(sql)
-
-            # Fetch all results
-            rows = result.fetchall()
-            columns = [desc[0] for desc in result.description]
+            if DB_ENGINE == 'postgresql':
+                pool = _get_pg_pool()
+                pg_conn = pool.getconn()
+                try:
+                    cur = pg_conn.cursor()
+                    cur.execute(sql)
+                    rows = cur.fetchall()
+                    columns = [desc[0] for desc in cur.description]
+                    cur.close()
+                finally:
+                    pool.putconn(pg_conn)
+            else:
+                result = self._get_conn().execute(sql)
+                rows = result.fetchall()
+                columns = [desc[0] for desc in result.description]
 
             # Convert to list of dicts, normalizing non-JSON-safe types
             data = []

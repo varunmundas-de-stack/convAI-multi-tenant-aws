@@ -60,12 +60,19 @@ fi
 section "4. Create .env file (if not present)"
 ENV_FILE="$REPO_DIR/.env"
 if [[ ! -f "$ENV_FILE" ]]; then
-  SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+  FLASK_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+  CUBEJS_SECRET=$(python3 -c "import secrets; print(secrets.token_hex(32))")
   cat > "$ENV_FILE" <<EOF
-FLASK_SECRET_KEY=${SECRET}
+FLASK_SECRET_KEY=${FLASK_SECRET}
+
 USE_CLAUDE_API=true
 ANTHROPIC_API_KEY=PASTE_YOUR_KEY_HERE
 ANONYMIZE_SCHEMA=false
+
+CUBEJS_API_SECRET=${CUBEJS_SECRET}
+CUBEJS_URL=http://cubejs:4000
+
+NODE_ENV=production
 EOF
   warn ".env created at $ENV_FILE — edit ANTHROPIC_API_KEY before starting!"
 else

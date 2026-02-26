@@ -1,7 +1,5 @@
-version: '3.9'
-
-# Production docker-compose — NO Ollama, uses Claude API
-# Usage: docker-compose -f docker-compose.prod.yml up -d --build
+# Production docker-compose — NO Ollama, uses Claude API + Cube.js
+# Usage: docker compose -f aws-deploy/docker-compose.prod.yml up -d --build
 
 services:
   app:
@@ -20,9 +18,37 @@ services:
       - USE_CLAUDE_API=true
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - ANONYMIZE_SCHEMA=${ANONYMIZE_SCHEMA:-false}
+      - CUBEJS_API_SECRET=${CUBEJS_API_SECRET}
+      - CUBEJS_URL=http://cubejs:4000
+    depends_on:
+      cubejs:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5000/login"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
+
+  cubejs:
+    build:
+      context: ../cubejs
+      dockerfile: Dockerfile
+    container_name: cpg_cubejs
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:4000:4000"   # internal only — not exposed to internet
+    environment:
+      - CUBEJS_API_SECRET=${CUBEJS_API_SECRET}
+      - CUBEJS_DB_TYPE=duckdb
+      - CUBEJS_DB_DUCKDB_DATABASE_PATH=/data/cpg_multi_tenant.duckdb
+      - NODE_ENV=production
+    volumes:
+      - ../database:/data:ro
+      - ../cubejs/schema:/cube/conf/schema:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4000/cubejs-api/v1/meta", "-H", "Authorization: Bearer test"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s

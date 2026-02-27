@@ -78,7 +78,7 @@ def _get_analytics_conn(client_id: str):
 app = Flask(__name__)
 
 # IMPORTANT: Change this in production! Use environment variable
-app.secret_key = os.getenv('FLASK_SECRET_KEY', 'dev-secret-key-change-in-production')
+app.secret_key = os.getenv('FLASK_SECRET_KEY') or 'dev-secret-key-change-in-production'
 
 # Session configuration - expire when browser closes
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'

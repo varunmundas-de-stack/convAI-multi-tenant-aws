@@ -85,7 +85,10 @@ class IntentParserV2:
         for keywords, metric in self._METRIC_KEYWORD_OVERRIDES:
             if any(kw in q for kw in keywords):
                 if query.metric_request and query.metric_request.primary_metric != metric:
-                    print(f"[Override] metric '{query.metric_request.primary_metric}' → '{metric}' for: {question}")
+                    import logging as _logging
+                    _logging.getLogger(__name__).debug(
+                        "Metric override: '%s' → '%s' for: %s",
+                        query.metric_request.primary_metric, metric, question)
                     query.metric_request.primary_metric = metric
                 break
         return query
@@ -111,7 +114,9 @@ class IntentParserV2:
             return self._apply_metric_overrides(result, question)
         except Exception as e:
             if not IntentParserV2._llm_unavailable_warned:
-                print(f"LLM unavailable ({e}). Using rule-based fallback for all queries.")
+                import logging as _logging
+                _logging.getLogger(__name__).warning(
+                    "LLM unavailable (%s). Using rule-based fallback for all queries.", e)
                 IntentParserV2._llm_unavailable_warned = True
             return self._fallback_parse(question)
 
@@ -143,7 +148,7 @@ class IntentParserV2:
         prompt = self._build_semantic_prompt(question)
 
         response = self.claude_client.messages.create(
-            model="claude-3-5-sonnet-20241022",
+            model="claude-haiku-4-5-20251001",
             max_tokens=1000,
             temperature=0,
             system=self._get_system_prompt(),
@@ -366,7 +371,8 @@ Parse into SemanticQuery JSON:"""
             try:
                 return json.loads(json_match.group())
             except json.JSONDecodeError as e:
-                print(f"JSON decode error: {e}")
+                import logging as _logging
+                _logging.getLogger(__name__).warning("LLM JSON decode error: %s", e)
 
         # Fallback empty structure
         return {
@@ -472,6 +478,16 @@ Parse into SemanticQuery JSON:"""
                 limit=limit or 10
             )
 
+        # Confidence: higher when more specific signals were found in the question
+        matched_signals = sum([
+            primary_metric != "secondary_sales_value",  # non-default metric found
+            bool(group_by),                             # dimension(s) detected
+            window != "last_4_weeks",                   # specific time window
+            intent != IntentType.SNAPSHOT,              # non-default intent
+            limit is not None,                          # explicit limit (top N)
+        ])
+        fallback_confidence = 0.45 + matched_signals * 0.09  # range: 0.45 – 0.90
+
         return SemanticQuery(
             intent=intent,
             metric_request=MetricRequest(primary_metric=primary_metric),
@@ -479,7 +495,7 @@ Parse into SemanticQuery JSON:"""
             time_context=TimeContext(window=window),
             filters=[],
             sorting=sorting,
-            confidence=0.6,
+            confidence=round(fallback_confidence, 2),
             original_question=question
         )
 
@@ -521,7 +537,7 @@ Generate a concise, insightful response (max 100 words) with:
         try:
             if self.use_claude:
                 response = self.claude_client.messages.create(
-                    model="claude-3-5-sonnet-20241022",
+                    model="claude-haiku-4-5-20251001",
                     max_tokens=200,
                     temperature=0.3,
                     messages=[
@@ -544,7 +560,8 @@ Generate a concise, insightful response (max 100 words) with:
                 return response['message']['content'].strip()
 
         except Exception as e:
-            print(f"Error generating response: {e}")
+            import logging as _logging
+            _logging.getLogger(__name__).warning("Error generating NL response: %s", e)
             return self._simple_summary(results)
 
     def _summarize_results(self, results: List[Dict], max_rows: int = 10) -> str:

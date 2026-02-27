@@ -94,6 +94,15 @@ login_manager.init_app(app)
 login_manager.login_view = 'login'  # Redirect to login page if not authenticated
 login_manager.session_protection = "strong"  # Prevent session hijacking
 
+
+@login_manager.unauthorized_handler
+def unauthorized():
+    """Return 401 JSON for API routes so the React app can detect session expiry."""
+    from flask import request as _req
+    if _req.path.startswith('/api/'):
+        return jsonify({'error': 'Session expired. Please log in again.', 'expired': True}), 401
+    return redirect(url_for('login'))
+
 # Absolute project root — resolves paths correctly regardless of working directory
 _APP_ROOT = Path(__file__).parent.parent
 _REACT_BUILD = _APP_ROOT / 'frontend' / 'static' / 'react'
@@ -111,6 +120,10 @@ client_components = {}
 
 # Initialize query validator (shared across all clients)
 query_validator = QueryValidator()
+
+# Query result cache — avoid redundant LLM + DuckDB calls for identical questions
+from flask_caching import Cache as _Cache
+_query_cache = _Cache(app, config={'CACHE_TYPE': 'SimpleCache', 'CACHE_DEFAULT_TIMEOUT': 300})
 
 # Tenant schema mapping (client_id -> DuckDB schema name)
 TENANT_SCHEMAS = {
@@ -136,9 +149,9 @@ def _insights_generation_loop():
         for client_id, schema_name in TENANT_SCHEMAS.items():
             try:
                 count = insights_engine.generate_and_store(client_id, schema_name)
-                print(f"[Insights] {client_id}: {count} insights generated/refreshed")
+                app.logger.info("[Insights] %s: %d insights generated/refreshed", client_id, count)
             except Exception as exc:
-                print(f"[Insights] Error generating for {client_id}: {exc}")
+                app.logger.error("[Insights] Error generating for %s: %s", client_id, exc)
         time.sleep(6 * 3600)  # refresh every 6 hours
 
 
@@ -448,10 +461,8 @@ def process_query():
         components = get_client_components(current_user.client_id)
 
         question_lower = question.lower()
-        print(f"\n{'='*60}")
-        print(f"DEBUG: Processing query: '{question}'")
-        print(f"DEBUG: User: {current_user.username}, Client: {current_user.client_id}")
-        print(f"{'='*60}")
+        app.logger.info("Processing query: '%s' | user: %s | client: %s",
+                        question, current_user.username, current_user.client_id)
 
         # Scope check — handles help, out-of-scope, and cross-client questions
         scope_result = _check_scope(question, current_user.client_id, current_user.username)
@@ -459,17 +470,15 @@ def process_query():
             return jsonify(scope_result)
 
         # Validate query for broadness
-        print(f"DEBUG: Validating query broadness...")
         try:
             validation_result = query_validator.validate_query(question)
         except Exception as e:
-            print(f"DEBUG: Validation error: {str(e)}")
-            print(f"DEBUG: Traceback: {traceback.format_exc()}")
+            app.logger.warning("Query validation error (skipping): %s", e)
             # If validation fails, continue to intent parsing
             validation_result = None
 
         if validation_result and validation_result.is_too_broad:
-            print(f"DEBUG: Query is too broad. Missing context: {validation_result.missing_context}")
+            app.logger.debug("Query too broad. Missing context: %s", validation_result.missing_context)
 
             # Get clarification questions
             clarification_questions = query_validator.get_clarification_questions(
@@ -514,16 +523,20 @@ def process_query():
                 }
             })
 
-        print(f"DEBUG: Query validation passed, proceeding to intent parsing...")
+        # Cache check — skip expensive LLM+DB work on repeated identical queries
+        _ck = f"q:{current_user.client_id}:{current_user.username}:{question.lower().strip()}"
+        _cached = _query_cache.get(_ck)
+        if _cached:
+            app.logger.info("Cache hit for query key: %s", _ck[:60])
+            return jsonify(_cached)
 
         # Parse intent
         start_time = time.time()
         try:
             semantic_query = components['intent_parser'].parse(question)
-            print(f"DEBUG: Successfully parsed intent: {semantic_query.intent}")  # Debug log
+            app.logger.debug("Parsed intent: %s (confidence %.2f)", semantic_query.intent, semantic_query.confidence)
         except Exception as e:
-            print(f"DEBUG: Intent parsing failed: {str(e)}")  # Debug log
-            print(f"DEBUG: Full error: {traceback.format_exc()}")  # Full traceback
+            app.logger.error("Intent parsing failed: %s\n%s", e, traceback.format_exc())
             auth_manager.log_query(
                 current_user.id, current_user.username, current_user.client_id,
                 question, None, False, str(e)
@@ -593,7 +606,7 @@ def process_query():
                 }
         except CubeJSError as cube_err:
             # Cube.js unavailable or query failed — fall back to legacy pipeline
-            print(f"DEBUG: Cube.js error ({cube_err}), falling back to legacy executor")
+            app.logger.warning("Cube.js error (%s) — falling back to legacy executor", cube_err)
             result = components['orchestrator'].execute(secured_query)
 
         exec_time = (time.time() - start_time) * 1000
@@ -610,10 +623,10 @@ def process_query():
             question, result.get('sql', ''), True, None
         )
 
-        return jsonify({
+        response_payload = {
             'success': True,
             'response': response,
-            'raw_data': result.get('results', []),  # Include raw data for chart rendering
+            'raw_data': result.get('results', []),
             'query_type': result.get('query_type', 'standard'),
             'metadata': {
                 'user': current_user.username,
@@ -624,11 +637,12 @@ def process_query():
                 'confidence': semantic_query.confidence,
                 'sql': result.get('sql', '')
             }
-        })
+        }
+        _query_cache.set(_ck, response_payload)
+        return jsonify(response_payload)
 
     except Exception as e:
-        error_trace = traceback.format_exc()
-        print(f"Error processing query: {error_trace}")
+        app.logger.error("Error processing query: %s", traceback.format_exc())
 
         auth_manager.log_query(
             current_user.id, current_user.username, current_user.client_id,
@@ -677,6 +691,14 @@ def process_query_stream():
             scope_result = _check_scope(question, client_id, username)
             if scope_result is not None:
                 yield _sse({"type": "result", **scope_result})
+                return
+
+            # ── Cache check — skip LLM+DB on repeated questions ────────
+            _ck = f"q:{client_id}:{username}:{question.lower().strip()}"
+            _cached = _query_cache.get(_ck)
+            if _cached:
+                yield _sse({"type": "progress", "step": "format", "msg": "⚡ Loaded from cache…"})
+                yield _sse({"type": "result", **_cached})
                 return
 
             components = get_client_components(client_id)
@@ -748,8 +770,7 @@ def process_query_stream():
             auth_manager.log_query(user_id, username, client_id, question,
                                    result.get('sql', ''), True, None)
 
-            yield _sse({
-                "type":       "result",
+            result_payload = {
                 "success":    True,
                 "response":   response_html,
                 "raw_data":   result.get('results', []),
@@ -763,7 +784,9 @@ def process_query_stream():
                     "confidence":    semantic_query.confidence,
                     "sql":           result.get('sql', ''),
                 },
-            })
+            }
+            _query_cache.set(_ck, result_payload)
+            yield _sse({"type": "result", **result_payload})
 
         except Exception as exc:
             auth_manager.log_query(user_id, username, client_id, question,
@@ -1074,8 +1097,7 @@ def get_dashboard():
         })
 
     except Exception as e:
-        error_trace = traceback.format_exc()
-        print(f"[Dashboard] Error: {error_trace}")
+        app.logger.error("[Dashboard] Error: %s", traceback.format_exc())
         return jsonify({'error': str(e)}), 500
 
 
@@ -1181,7 +1203,7 @@ def dashboard_drilldown():
         return jsonify({'title': title, 'items': items})
 
     except Exception as exc:
-        print(f"[Drilldown] Error: {traceback.format_exc()}")
+        app.logger.error("[Drilldown] Error: %s", traceback.format_exc())
         return jsonify({'error': str(exc)}), 500
 
 

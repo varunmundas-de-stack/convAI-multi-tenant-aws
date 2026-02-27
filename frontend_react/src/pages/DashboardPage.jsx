@@ -120,7 +120,7 @@ function TabPill({ tab, active, badge, onClick }) {
       `}
     >
       <span className="text-sm">{tab.icon}</span>
-      <span className="truncate hidden xs:inline sm:inline">{tab.label}</span>
+      <span className="truncate hidden sm:inline">{tab.label}</span>
       {badge > 0 && (
         <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[16px] text-center leading-none flex-shrink-0">
           {badge > 9 ? '9+' : badge}

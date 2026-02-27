@@ -44,7 +44,7 @@ python database/create_multi_schema_demo.py
 python frontend/app_with_auth.py
 
 # Open browser: http://localhost:5000
-# Login: nestle_analyst / nestle123
+# Login: nestle_analyst / analyst123
 ```
 
 **Done in 5 minutes!** 🎉
@@ -184,9 +184,12 @@ export USE_CLAUDE_API=true
 
 | Username | Password | Client | Access |
 |----------|----------|--------|--------|
-| nestle_analyst | nestle123 | Nestlé India | client_nestle schema only |
-| unilever_analyst | unilever123 | Hindustan Unilever | client_unilever schema only |
-| itc_analyst | itc123 | ITC Limited | client_itc schema only |
+| nestle_admin | admin123 | Nestlé India | full access |
+| nestle_analyst | analyst123 | Nestlé India | client_nestle schema only |
+| unilever_admin | admin123 | Hindustan Unilever | full access |
+| unilever_analyst | analyst123 | Hindustan Unilever | client_unilever schema only |
+| itc_admin | admin123 | ITC Limited | full access |
+| itc_analyst | analyst123 | ITC Limited | client_itc schema only |
 
 **Note:** Change passwords in production!
 

@@ -71,17 +71,35 @@ function AssistantBubble({ message }) {
             <NaturalSummary data={raw_data} />
           )}
 
-          {/* Main response HTML */}
+          {/* Main response HTML — overflow-x-auto ensures wide tables scroll on mobile */}
           {response && (
-            <div
-              className="text-sm text-gray-700 prose prose-sm max-w-none"
-              dangerouslySetInnerHTML={{ __html: success ? response : `<span class="text-red-600">${response}</span>` }}
-            />
+            <div className="overflow-x-auto">
+              <div
+                className="text-sm text-gray-700 prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: success ? response : `<span class="text-red-600">${response}</span>` }}
+              />
+            </div>
           )}
 
           {/* Chart */}
           {raw_data?.length >= 2 && query_type !== 'diagnostic' && (
             <DataChart data={raw_data} />
+          )}
+
+          {/* CSV export */}
+          {raw_data?.length > 0 && (
+            <div className="mt-2">
+              <button
+                onClick={() => downloadCSV(raw_data)}
+                className="text-xs text-gray-400 hover:text-emerald-600 flex items-center gap-1 transition-colors"
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Download CSV
+              </button>
+            </div>
           )}
 
           {/* SQL toggle */}
@@ -269,4 +287,21 @@ function WelcomeCard({ name, client }) {
 
 function timestamp() {
   return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+
+function downloadCSV(data) {
+  if (!data?.length) return
+  const headers = Object.keys(data[0])
+  const escape  = (v) => {
+    const s = String(v ?? '')
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g, '""')}"` : s
+  }
+  const rows = [headers.join(','), ...data.map(row => headers.map(h => escape(row[h])).join(','))]
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8;' })
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `cpg-export-${new Date().toISOString().slice(0, 10)}.csv`
+  a.click()
+  URL.revokeObjectURL(url)
 }

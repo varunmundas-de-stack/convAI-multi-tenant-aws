@@ -44,5 +44,5 @@ RUN chmod +x database/init_db.sh
 # Expose Flask port
 EXPOSE 5000
 
-# Entrypoint: dispatch DB init (DuckDB or PostgreSQL), then start Flask
-CMD ["sh", "-c", "sh database/init_db.sh && python frontend/app_with_auth.py"]
+# Entrypoint: dispatch DB init (DuckDB or PostgreSQL), then start via gunicorn
+CMD ["sh", "-c", "sh database/init_db.sh && gunicorn --config gunicorn.conf.py 'frontend.app_with_auth:app'"]

@@ -183,6 +183,132 @@ def load_user(user_id):
     return auth_manager.get_user_by_id(int(user_id))
 
 
+# ── Shared scope-checking helpers (used by both /api/query and /api/query/stream) ──
+
+def _kw_match(text, keywords):
+    """Word-boundary aware keyword matching."""
+    for kw in keywords:
+        if re.search(r'\b' + re.escape(kw) + r'\b', text):
+            return True
+    return False
+
+
+def _check_scope(question, client_id, username):
+    """
+    Check whether a question is in-scope for analytics.
+
+    Returns a response dict  {success, response, metadata}  if the question
+    should be short-circuited (out-of-scope / help / permission-denied).
+    Returns None  if the question is valid and should proceed to intent parsing.
+    """
+    q = question.lower().strip()
+
+    # ── 1. Help / examples request ────────────────────────────────────────────
+    help_keywords = [
+        'what questions', 'what can i ask', 'what can you do',
+        'give me examples', 'show examples', 'sample questions',
+        'help me', 'what to ask', 'how to use',
+    ]
+    if any(kw in q for kw in help_keywords) or q in ('help', 'examples', 'suggestions'):
+        suggestions = {
+            "🏆 Ranking": ["Show top 5 brands by sales value",
+                           "Top 10 SKUs by volume this month",
+                           "Top distributors by sales value"],
+            "📈 Trends":  ["Weekly sales trend for last 6 weeks",
+                           "Monthly sales trend for this year"],
+            "🔍 Compare": ["Compare sales by channel",
+                           "Sales by state this month"],
+            "📊 Snapshot":["Total sales this month",
+                           "Total volume last month"],
+            "🔬 Diagnostics":["Why did sales change?", "Why did sales drop?"],
+        }
+        html = '<div class="suggestions-box"><h3>📊 Sample Questions</h3>'
+        for cat, qs in suggestions.items():
+            html += f'<h4>{cat}</h4><ul>'
+            for sq in qs:
+                html += f'<li>"{sq}"</li>'
+            html += '</ul>'
+        html += '</div>'
+        return {'success': True, 'response': html,
+                'metadata': {'intent': 'help', 'query_id': f'HELP{int(time.time())}'}}
+
+    # ── 2. Database / schema metadata questions ───────────────────────────────
+    metadata_kws = [
+        'table', 'column', 'schema', 'database', 'metadata',
+        'what tables', 'what columns', 'show tables', 'describe table',
+        'table structure', 'database structure', 'list tables',
+        'what data', 'what fields', 'available fields',
+    ]
+    if _kw_match(q, metadata_kws):
+        html = """
+        <div style="padding:15px;background:#ffebee;border-left:4px solid #f44336;border-radius:4px;">
+          <h3 style="color:#d32f2f;margin-bottom:10px;">❌ Out of Scope</h3>
+          <p><strong>This assistant is for analytics queries only — not database metadata.</strong></p>
+          <p style="margin-top:10px;padding:10px;background:white;border-radius:4px;">
+            <strong>Try instead:</strong><br>
+            • "Show top 5 brands by sales"<br>• "Weekly sales trend"<br>
+            • "Why did sales change?"<br>• "Total sales this month"
+          </p>
+        </div>"""
+        return {'success': False, 'response': html,
+                'metadata': {'intent': 'out_of_scope_metadata'}}
+
+    # ── 3. General knowledge / off-topic questions ────────────────────────────
+    general_kws = [
+        'who is', 'who was', 'who are', 'what is a', 'what are the',
+        'when was', 'where is', 'where was', 'how to', 'how do i',
+        'weather', 'news', 'stock market', 'sports', 'politics',
+        'calculate', 'math', 'geography', 'history', 'science',
+        'president', 'prime minister', 'actor', 'actress', 'celebrity',
+        'movie', 'film', 'song', 'music', 'cricket', 'football',
+    ]
+    analytics_exceptions = ['what is the', 'what are my', 'how much', 'how many',
+                            'how is', 'where is my', 'when is my']
+    if _kw_match(q, general_kws) and not any(exc in q for exc in analytics_exceptions):
+        html = """
+        <div style="padding:15px;background:#fff3cd;border-left:4px solid #ffc107;border-radius:4px;">
+          <h3 style="color:#856404;margin-bottom:10px;">⚠️ Out of Scope</h3>
+          <p><strong>I'm a CPG sales analytics assistant — not a general knowledge chatbot.</strong></p>
+          <p style="margin-top:10px;">Your question is outside my domain. I can only help with
+             sales data, brand performance, distribution metrics, and trends.</p>
+          <p style="margin-top:10px;padding:10px;background:white;border-radius:4px;">
+            <strong>Try asking:</strong><br>
+            • "Show top brands by sales this month"<br>
+            • "Why did sales drop last week?"<br>
+            • "Compare channel performance"
+          </p>
+        </div>"""
+        return {'success': False, 'response': html,
+                'metadata': {'intent': 'out_of_scope_general'}}
+
+    # ── 4. Cross-client data access attempt ───────────────────────────────────
+    all_clients = {
+        'nestle':   ['nestle', 'nestlé'],
+        'unilever': ['unilever', 'hindustan unilever', 'hul'],
+        'itc':      ['itc', 'itc limited'],
+    }
+    mentioned = []
+    for cid, aliases in all_clients.items():
+        if cid != client_id and any(alias in q for alias in aliases):
+            cfg = auth_manager.get_client_config(cid)
+            if cfg:
+                mentioned.append(cfg['client_name'])
+    if mentioned:
+        my_cfg = auth_manager.get_client_config(client_id)
+        my_name = my_cfg['client_name'] if my_cfg else client_id
+        html = f"""
+        <div style="padding:15px;background:#ffebee;border-left:4px solid #f44336;border-radius:4px;">
+          <h3 style="color:#d32f2f;margin-bottom:10px;">🚫 Permission Denied</h3>
+          <p>You do not have access to data from: <strong>{', '.join(mentioned)}</strong></p>
+          <p style="margin-top:10px;">Your account (<strong>{username}</strong>) can only
+             access <strong>{my_name}</strong> data.</p>
+        </div>"""
+        return {'success': False, 'response': html,
+                'metadata': {'intent': 'permission_denied'}}
+
+    return None  # in-scope — proceed to intent parsing
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     """Login page"""
@@ -327,182 +453,10 @@ def process_query():
         print(f"DEBUG: User: {current_user.username}, Client: {current_user.client_id}")
         print(f"{'='*60}")
 
-        # Handle meta/help questions
-        help_keywords = [
-            'what questions', 'what can i ask', 'what can you do',
-            'give me examples', 'show examples', 'sample questions',
-            'help me', 'what to ask', 'how to use',
-        ]
-
-        help_triggers = ['help', 'examples', 'suggestions']
-        is_help_question = (
-            any(keyword in question_lower for keyword in help_keywords) or
-            question_lower.strip() in help_triggers
-        )
-
-        if is_help_question:
-            suggestions = {
-                "🏆 Ranking Questions": [
-                    "Show top 5 brands by sales value",
-                    "Top 10 SKUs by volume this month",
-                    "Top distributors by sales value",
-                ],
-                "📈 Trend Analysis": [
-                    "Weekly sales trend for last 6 weeks",
-                    "Monthly sales trend for this year",
-                ],
-                "🔍 Comparison": [
-                    "Compare sales by channel",
-                    "Sales by state this month",
-                ],
-                "📊 Snapshots": [
-                    "Total sales this month",
-                    "Total volume last month",
-                ],
-                "🔬 Diagnostics": [
-                    "Why did sales change?",
-                    "Why did sales drop?",
-                ],
-            }
-
-            html_response = '<div class="suggestions-box">'
-            html_response += '<h3>📊 Sample Questions</h3>'
-
-            for category, questions in suggestions.items():
-                html_response += f'<h4>{category}</h4><ul>'
-                for q in questions:
-                    html_response += f'<li>"{q}"</li>'
-                html_response += '</ul>'
-
-            html_response += '</div>'
-
-            return jsonify({
-                'success': True,
-                'response': html_response,
-                'metadata': {
-                    'query_id': f"HELP{int(time.time())}",
-                    'intent': 'help',
-                }
-            })
-
-        # Check for out-of-scope questions
-        # 1. Metadata/schema questions
-        metadata_keywords = [
-            'table', 'column', 'schema', 'database', 'metadata',
-            'what tables', 'what columns', 'show tables', 'describe table',
-            'table structure', 'database structure', 'list tables',
-            'what data', 'what fields', 'available fields'
-        ]
-
-        def _kw_match(text, keywords):
-            """Word-boundary aware keyword matching — avoids 'show top' matching 'how to'."""
-            for kw in keywords:
-                if re.search(r'\b' + re.escape(kw) + r'\b', text):
-                    return True
-            return False
-
-        if _kw_match(question_lower, metadata_keywords):
-            client_config = auth_manager.get_client_config(current_user.client_id)
-            html_response = f"""
-            <div style="padding: 15px; background: #ffebee; border-left: 4px solid #f44336; border-radius: 4px;">
-                <h3 style="color: #d32f2f; margin-bottom: 10px;">❌ Out of Scope Question</h3>
-                <p><strong>This chatbot is for analytics queries only, not database metadata exploration.</strong></p>
-                <p style="margin-top: 10px;">You asked about database structure or metadata. This information is not available through the chatbot interface.</p>
-                <p style="margin-top: 10px; padding: 10px; background: white; border-radius: 4px;">
-                    <strong>What you CAN ask:</strong><br>
-                    • "Show top 5 brands by sales"<br>
-                    • "Weekly sales trend"<br>
-                    • "Why did sales change?"<br>
-                    • "Total sales this month"
-                </p>
-                <p style="margin-top: 10px; font-size: 12px; color: #666;">
-                    <em>💡 For metadata exploration, use the CLI tool: <code>python explore_database.py</code></em>
-                </p>
-            </div>
-            """
-            return jsonify({
-                'success': False,
-                'response': html_response,
-                'metadata': {'intent': 'out_of_scope_metadata'}
-            })
-
-        # 2. General knowledge questions
-        general_keywords = [
-            'who is', 'when was', 'where is', 'how to',
-            'weather', 'news', 'stock market', 'sports', 'politics',
-            'calculate', 'math', 'geography', 'history', 'science'
-        ]
-
-        if _kw_match(question_lower, general_keywords):
-            analytics_exceptions = ['what are', 'what is', 'how much', 'how many']
-            if not any(exc in question_lower for exc in analytics_exceptions):
-                html_response = f"""
-                <div style="padding: 15px; background: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px;">
-                    <h3 style="color: #856404; margin-bottom: 10px;">⚠️ Out of Scope Question</h3>
-                    <p><strong>This chatbot is specialized for CPG sales analytics only.</strong></p>
-                    <p style="margin-top: 10px;">Your question appears to be about general knowledge or non-analytics topics.</p>
-                    <p style="margin-top: 10px; padding: 10px; background: white; border-radius: 4px;">
-                        <strong>I can help you with:</strong><br>
-                        • Sales performance analysis<br>
-                        • Brand and product insights<br>
-                        • Distribution channel metrics<br>
-                        • Time-based trends and diagnostics
-                    </p>
-                    <p style="margin-top: 10px; font-size: 13px;">
-                        <strong>Try asking:</strong> "Show top brands by sales this month"
-                    </p>
-                </div>
-                """
-                return jsonify({
-                    'success': False,
-                    'response': html_response,
-                    'metadata': {'intent': 'out_of_scope_general'}
-                })
-
-        # 3. Check for cross-client queries (mentions of other companies)
-        all_clients = {
-            'nestle': ['nestle', 'nestlé'],
-            'unilever': ['unilever', 'hindustan unilever', 'hul'],
-            'itc': ['itc', 'itc limited']
-        }
-
-        # Check if question mentions other clients
-        mentioned_clients = []
-        for client_id, aliases in all_clients.items():
-            if client_id != current_user.client_id:
-                if any(alias in question_lower for alias in aliases):
-                    client_config = auth_manager.get_client_config(client_id)
-                    if client_config:
-                        mentioned_clients.append(client_config['client_name'])
-
-        if mentioned_clients:
-            print(f"DEBUG: Cross-client check triggered!")
-            print(f"DEBUG: Mentioned clients: {mentioned_clients}")
-            current_client = auth_manager.get_client_config(current_user.client_id)
-            html_response = f"""
-            <div style="padding: 15px; background: #ffebee; border-left: 4px solid #f44336; border-radius: 4px;">
-                <h3 style="color: #d32f2f; margin-bottom: 10px;">🚫 Permission Denied</h3>
-                <p><strong>You do not have access to data from: {', '.join(mentioned_clients)}</strong></p>
-                <p style="margin-top: 10px;">Your account (<strong>{current_user.username}</strong>) is authorized to access <strong>{current_client['client_name']}</strong> data only.</p>
-                <p style="margin-top: 10px; padding: 10px; background: #fff3cd; border-radius: 4px;">
-                    <strong>⚠️ Data Isolation:</strong><br>
-                    For security and privacy reasons, each client's data is completely isolated.
-                    You can only query data for your assigned organization.
-                </p>
-                <p style="margin-top: 10px; padding: 10px; background: white; border-radius: 4px;">
-                    <strong>✅ You CAN ask about:</strong><br>
-                    • "{current_client['client_name']} top brands by sales"<br>
-                    • "Weekly sales trend for my products"<br>
-                    • "Why did our sales change?"<br>
-                    • "Total sales this month"
-                </p>
-            </div>
-            """
-            return jsonify({
-                'success': False,
-                'response': html_response,
-                'metadata': {'intent': 'permission_denied'}
-            })
+        # Scope check — handles help, out-of-scope, and cross-client questions
+        scope_result = _check_scope(question, current_user.client_id, current_user.username)
+        if scope_result is not None:
+            return jsonify(scope_result)
 
         # Validate query for broadness
         print(f"DEBUG: Validating query broadness...")
@@ -719,6 +673,12 @@ def process_query_stream():
                     "msg": "🧠 Understanding your question…"})
 
         try:
+            # ── Scope check (instant — no LLM needed) ─────────────────
+            scope_result = _check_scope(question, client_id, username)
+            if scope_result is not None:
+                yield _sse({"type": "result", **scope_result})
+                return
+
             components = get_client_components(client_id)
             start = time.time()
 

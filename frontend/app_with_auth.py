@@ -13,7 +13,7 @@ from pathlib import Path
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory
+from flask import Flask, render_template, request, jsonify, redirect, url_for, send_from_directory, Response, stream_with_context
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from semantic_layer.semantic_layer import SemanticLayer
 from llm.intent_parser_v2 import IntentParserV2
@@ -685,6 +685,157 @@ def process_query():
             'success': False,
             'error': f'Unexpected error: {str(e)}'
         })
+
+
+@app.route('/api/query/stream', methods=['POST'])
+@login_required
+def process_query_stream():
+    """SSE streaming version of /api/query — emits live progress steps then final result."""
+    data = request.json or {}
+    question = data.get('question', '').strip()
+    if not question:
+        return jsonify({'success': False, 'error': 'Empty question'}), 400
+
+    # Capture user identity before entering generator (Flask context exits after response starts)
+    user_id        = current_user.id
+    username       = current_user.username
+    client_id      = current_user.client_id
+    user_role      = current_user.role
+    so_code        = current_user.so_code
+    asm_code       = current_user.asm_code
+    zsm_code       = current_user.zsm_code
+    nsm_code       = current_user.nsm_code
+    shier_level    = current_user.sales_hierarchy_level
+    full_name      = getattr(current_user, 'full_name', username)
+
+    def _sse(payload: dict) -> str:
+        return f"data: {_json.dumps(payload)}\n\n"
+
+    @stream_with_context
+    def generate():
+        import traceback as _tb
+
+        yield _sse({"type": "progress", "step": "intent",
+                    "msg": "🧠 Understanding your question…"})
+
+        try:
+            components = get_client_components(client_id)
+            start = time.time()
+
+            # ── Intent parsing (LLM call — slowest step) ──────────────
+            semantic_query = components['intent_parser'].parse(question)
+            parse_ms = (time.time() - start) * 1000
+
+            yield _sse({"type": "progress", "step": "validate",
+                        "msg": "✅ Validating query…"})
+
+            errors = components['validator'].validate(semantic_query)
+            if errors:
+                yield _sse({"type": "result", "success": False,
+                            "error": f"Validation errors: {', '.join(errors)}"})
+                return
+
+            hierarchy_restricted = {'SO', 'ASM', 'ZSM'}
+            access_level = 'territory' if user_role in hierarchy_restricted else 'national'
+            user_ctx = UserContext(
+                user_id=username, role=user_role, data_access_level=access_level,
+                states=[], regions=[],
+                sales_hierarchy_level=shier_level,
+                so_codes=[so_code]   if so_code   else [],
+                asm_codes=[asm_code] if asm_code  else [],
+                zsm_codes=[zsm_code] if zsm_code  else [],
+                nsm_codes=[nsm_code] if nsm_code  else [],
+            )
+            secured_query = RowLevelSecurity.apply_security(semantic_query, user_ctx)
+
+            yield _sse({"type": "progress", "step": "exec",
+                        "msg": "⚡ Running analytics…"})
+
+            # ── Execution ──────────────────────────────────────────────
+            exec_start = time.time()
+            try:
+                cubejs_token = generate_cubejs_token_for(
+                    username, client_id, user_role,
+                    so_code=so_code, asm_code=asm_code,
+                    zsm_code=zsm_code, nsm_code=nsm_code)
+                adapter = CubeJSAdapter()
+                if secured_query.intent.value == 'diagnostic':
+                    result = components['orchestrator'].execute(secured_query)
+                else:
+                    cube_query = adapter.build_query(secured_query)
+                    raw = adapter.execute(cube_query, cubejs_token)
+                    result = {
+                        'query_type': 'single',
+                        'sql': raw.get('sql', ''),
+                        'results': raw.get('results', []),
+                        'metadata': {'row_count': len(raw.get('results', [])),
+                                     'execution_time_ms': 0,
+                                     'intent': secured_query.intent.value},
+                    }
+            except CubeJSError:
+                result = components['orchestrator'].execute(secured_query)
+
+            exec_ms = (time.time() - exec_start) * 1000
+
+            yield _sse({"type": "progress", "step": "format",
+                        "msg": "📊 Formatting results…"})
+
+            if result['query_type'] == 'diagnostic':
+                response_html = format_diagnostic_response(result)
+            else:
+                response_html = format_single_query_response(result)
+
+            auth_manager.log_query(user_id, username, client_id, question,
+                                   result.get('sql', ''), True, None)
+
+            yield _sse({
+                "type":       "result",
+                "success":    True,
+                "response":   response_html,
+                "raw_data":   result.get('results', []),
+                "query_type": result.get('query_type', 'standard'),
+                "metadata": {
+                    "user":          username,
+                    "client":        client_id,
+                    "intent":        semantic_query.intent.value,
+                    "parse_time_ms": round(parse_ms, 2),
+                    "exec_time_ms":  round(exec_ms, 2),
+                    "confidence":    semantic_query.confidence,
+                    "sql":           result.get('sql', ''),
+                },
+            })
+
+        except Exception as exc:
+            auth_manager.log_query(user_id, username, client_id, question,
+                                   None, False, str(exc))
+            yield _sse({"type": "result", "success": False,
+                        "error": f"Unexpected error: {exc}"})
+
+    return Response(generate(), mimetype='text/event-stream',
+                    headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+
+
+def generate_cubejs_token_for(username, client_id, role, so_code=None, asm_code=None, zsm_code=None, nsm_code=None):
+    """Generate Cube.js token from raw values (safe to call inside a generator)."""
+    import os, jwt
+    from datetime import datetime, timedelta, timezone
+    secret = os.getenv('CUBEJS_API_SECRET')
+    if not secret:
+        raise RuntimeError('CUBEJS_API_SECRET not set')
+    role_up = (role or '').upper()
+    hierarchy_code = (
+        so_code  if role_up == 'SO'  and so_code  else
+        asm_code if role_up == 'ASM' and asm_code else
+        zsm_code if role_up == 'ZSM' and zsm_code else
+        nsm_code if role_up == 'NSM' and nsm_code else None
+    )
+    payload = {
+        'clientId': client_id, 'username': username, 'role': role,
+        'hierarchy_code': hierarchy_code,
+        'exp': datetime.now(tz=timezone.utc) + timedelta(hours=8),
+        'iat': datetime.now(tz=timezone.utc),
+    }
+    return jwt.encode(payload, secret, algorithm='HS256')
 
 
 def format_single_query_response(result):

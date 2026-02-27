@@ -21,6 +21,43 @@ export async function sendQuery(question) {
   return data
 }
 
+/**
+ * Streaming version of sendQuery using Server-Sent Events.
+ * onProgress({ step, msg }) is called for each live progress update.
+ * Resolves with the final result payload when done.
+ */
+export function sendQueryStream(question, onProgress) {
+  return new Promise((resolve, reject) => {
+    fetch('/api/query/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'same-origin',
+      body: JSON.stringify({ question }),
+    }).then(res => {
+      if (!res.ok) { reject(new Error(`HTTP ${res.status}`)); return }
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buf = ''
+      const pump = () => reader.read().then(({ done, value }) => {
+        if (done) { reject(new Error('Stream ended without result')); return }
+        buf += decoder.decode(value, { stream: true })
+        const lines = buf.split('\n')
+        buf = lines.pop()
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue
+          try {
+            const event = JSON.parse(line.slice(6))
+            if (event.type === 'progress') { onProgress?.(event); continue }
+            if (event.type === 'result')   { resolve(event); return }
+          } catch { /* malformed line — skip */ }
+        }
+        pump()
+      }).catch(reject)
+      pump()
+    }).catch(reject)
+  })
+}
+
 export async function fetchInsights() {
   const { data } = await api.get('/api/insights')
   return data.insights || []

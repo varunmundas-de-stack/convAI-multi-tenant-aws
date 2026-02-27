@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import {
-  fetchSuggestions, sendQuery,
+  fetchSuggestions, sendQueryStream,
   fetchSessionMessages, saveMessage, createSession,
 } from '../api/client'
 import MessageBubble from './MessageBubble'
@@ -13,6 +13,7 @@ export default function ChatTab({ user, sessionId, onSessionCreated, prefillQuer
   const [input, setInput]             = useState('')
   const [loading, setLoading]         = useState(false)
   const [histLoading, setHistLoading] = useState(false)
+  const [progressStep, setProgressStep] = useState(null)  // live streaming step
 
   const activeSessionRef = useRef(sessionId)
   const bottomRef        = useRef(null)
@@ -63,27 +64,30 @@ export default function ChatTab({ user, sessionId, onSessionCreated, prefillQuer
     const q = directQuery ? directQuery.trim() : input.trim()
     if (!q || loading) return
 
-    const tempId = `tmp-${Date.now()}`
-    setMessages(prev => [...prev.filter(m => !m.isWelcome), { id: tempId, role: 'user', text: q }])
+    setMessages(prev => [...prev.filter(m => !m.isWelcome), { id: `u-${Date.now()}`, role: 'user', text: q }])
     setInput('')
     setLoading(true)
+    setProgressStep({ step: 'intent', msg: '🧠 Understanding your question…' })
 
     try {
       const sid = await ensureSession(q)
       await saveMessage(sid, { role: 'user', content: q, title_hint: q }).catch(() => {})
 
-      const data = await sendQuery(q)
+      const data = await sendQueryStream(q, (evt) => setProgressStep(evt))
+
+      setProgressStep(null)
       const assistantMsg = { id: `a-${Date.now()}`, role: 'assistant', data }
       setMessages(prev => [...prev, assistantMsg])
 
       await saveMessage(sid, {
         role:       'assistant',
         content:    data.response || '',
-        raw_data:   data.raw_data   || null,
+        raw_data:   data.raw_data   ? JSON.stringify(data.raw_data)   : null,
         query_type: data.query_type || null,
-        metadata:   data.metadata   || null,
+        metadata:   data.metadata   ? JSON.stringify(data.metadata)   : null,
       }).catch(() => {})
     } catch {
+      setProgressStep(null)
       setMessages(prev => [...prev, {
         id:    `err-${Date.now()}`,
         role:  'assistant',
@@ -151,7 +155,7 @@ export default function ChatTab({ user, sessionId, onSessionCreated, prefillQuer
           messages.map(msg => <MessageBubble key={msg.id} message={msg} />)
         )}
 
-        {loading && <TypingIndicator />}
+        {loading && <TypingIndicator step={progressStep} />}
         <div ref={bottomRef} />
       </div>
 
@@ -230,31 +234,71 @@ function hydrateRow(row) {
   }
 }
 
-function TypingIndicator() {
+const STEPS = [
+  { key: 'intent',   label: 'Understanding' },
+  { key: 'validate', label: 'Validating'    },
+  { key: 'exec',     label: 'Running query' },
+  { key: 'format',   label: 'Formatting'    },
+]
+
+function TypingIndicator({ step }) {
+  const activeIdx = step ? STEPS.findIndex(s => s.key === step.step) : 0
+
   return (
     <div className="flex items-start gap-2 animate-slide-in">
       <BotAvatar />
       <div
-        className="rounded-2xl rounded-tl-sm px-4 py-3"
+        className="rounded-2xl rounded-tl-sm px-4 py-3 min-w-[220px]"
         style={{
-          background: 'rgba(255,255,255,0.85)',
+          background: 'rgba(255,255,255,0.92)',
           backdropFilter: 'blur(16px)',
           WebkitBackdropFilter: 'blur(16px)',
-          border: '1px solid rgba(255,255,255,0.9)',
-          boxShadow: '0 2px 12px rgba(99,102,241,0.07)',
+          border: '1px solid rgba(255,255,255,0.95)',
+          boxShadow: '0 2px 16px rgba(99,102,241,0.10)',
         }}
       >
-        <div className="flex gap-1.5 items-center h-5">
-          {[0, 0.18, 0.36].map((delay, i) => (
-            <span
-              key={i}
-              className="w-2 h-2 rounded-full dot-bounce"
-              style={{
-                animationDelay: `${delay}s`,
-                background: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-              }}
-            />
-          ))}
+        {/* Live step message */}
+        {step?.msg && (
+          <p className="text-xs font-semibold text-violet-600 mb-2.5 tracking-tight">
+            {step.msg}
+          </p>
+        )}
+
+        {/* Step pills */}
+        <div className="flex gap-1.5 flex-wrap">
+          {STEPS.map((s, i) => {
+            const done    = i < activeIdx
+            const active  = i === activeIdx
+            const pending = i > activeIdx
+            return (
+              <span
+                key={s.key}
+                className="text-[10px] font-bold px-2 py-0.5 rounded-full transition-all duration-300"
+                style={{
+                  background: done    ? 'rgba(16,185,129,0.12)'  :
+                              active  ? 'rgba(99,102,241,0.12)'  :
+                                        'rgba(0,0,0,0.04)',
+                  color:      done    ? '#059669' :
+                              active  ? '#4f46e5' :
+                                        '#9ca3af',
+                  border:     `1px solid ${done ? 'rgba(16,185,129,0.3)' : active ? 'rgba(99,102,241,0.3)' : 'transparent'}`,
+                }}
+              >
+                {done ? '✓ ' : active ? '⟳ ' : ''}{s.label}
+              </span>
+            )
+          })}
+        </div>
+
+        {/* Animated progress bar */}
+        <div className="mt-2.5 h-0.5 rounded-full overflow-hidden" style={{ background: 'rgba(0,0,0,0.06)' }}>
+          <div
+            className="h-full rounded-full transition-all duration-700 ease-out"
+            style={{
+              width: `${Math.max(8, ((activeIdx + 1) / STEPS.length) * 100)}%`,
+              background: 'linear-gradient(90deg, #6366f1, #8b5cf6, #a855f7)',
+            }}
+          />
         </div>
       </div>
     </div>

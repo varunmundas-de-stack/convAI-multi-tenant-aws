@@ -284,14 +284,14 @@ class HierarchyInsightsEngine:
                     WITH this_wk AS (
                         SELECT SUM(f.net_value) AS val
                         FROM {schema}.fact_secondary_sales f
-                        JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.sales_hierarchy_key
+                        JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.hierarchy_key
                         WHERE sh.zsm_code = '{zsm_code}'
                           AND f.invoice_date >= CURRENT_DATE - {self._interval_days(7)}
                     ),
                     prev_wk AS (
                         SELECT SUM(f.net_value) AS val
                         FROM {schema}.fact_secondary_sales f
-                        JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.sales_hierarchy_key
+                        JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.hierarchy_key
                         WHERE sh.zsm_code = '{zsm_code}'
                           AND f.invoice_date >= CURRENT_DATE - {self._interval_days(14)}
                           AND f.invoice_date < CURRENT_DATE - {self._interval_days(7)}
@@ -332,7 +332,7 @@ class HierarchyInsightsEngine:
                 rows = conn.execute(f"""
                     SELECT sh.asm_code, sh.asm_name, SUM(f.net_value) AS asm_sales
                     FROM {schema}.fact_secondary_sales f
-                    JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.sales_hierarchy_key
+                    JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.hierarchy_key
                     WHERE sh.zsm_code = '{zsm_code}'
                       AND EXTRACT(MONTH FROM f.invoice_date) = EXTRACT(MONTH FROM CURRENT_DATE)
                     GROUP BY sh.asm_code, sh.asm_name
@@ -392,7 +392,7 @@ class HierarchyInsightsEngine:
                 rows = conn.execute(f"""
                     SELECT sh.so_code, sh.so_name, SUM(f.net_value) AS so_sales
                     FROM {schema}.fact_secondary_sales f
-                    JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.sales_hierarchy_key
+                    JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.hierarchy_key
                     WHERE sh.asm_code = '{asm_code}'
                       AND EXTRACT(MONTH FROM f.invoice_date) = EXTRACT(MONTH FROM CURRENT_DATE)
                     GROUP BY sh.so_code, sh.so_name
@@ -433,7 +433,7 @@ class HierarchyInsightsEngine:
                     WITH this_wk AS (
                         SELECT p.brand_name, SUM(f.net_value) AS val
                         FROM {schema}.fact_secondary_sales f
-                        JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.sales_hierarchy_key
+                        JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.hierarchy_key
                         JOIN {schema}.dim_product p ON f.product_key = p.product_key
                         WHERE sh.asm_code = '{asm_code}'
                           AND f.invoice_date >= CURRENT_DATE - {self._interval_days(7)}
@@ -442,7 +442,7 @@ class HierarchyInsightsEngine:
                     prev_wk AS (
                         SELECT p.brand_name, SUM(f.net_value) AS val
                         FROM {schema}.fact_secondary_sales f
-                        JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.sales_hierarchy_key
+                        JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.hierarchy_key
                         JOIN {schema}.dim_product p ON f.product_key = p.product_key
                         WHERE sh.asm_code = '{asm_code}'
                           AND f.invoice_date >= CURRENT_DATE - {self._interval_days(14)}
@@ -509,14 +509,14 @@ class HierarchyInsightsEngine:
                     WITH this_wk AS (
                         SELECT SUM(f.net_value) AS val
                         FROM {schema}.fact_secondary_sales f
-                        JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.sales_hierarchy_key
+                        JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.hierarchy_key
                         WHERE sh.so_code = '{so_code}'
                           AND f.invoice_date >= CURRENT_DATE - {self._interval_days(7)}
                     ),
                     prev_wk AS (
                         SELECT SUM(f.net_value) AS val
                         FROM {schema}.fact_secondary_sales f
-                        JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.sales_hierarchy_key
+                        JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.hierarchy_key
                         WHERE sh.so_code = '{so_code}'
                           AND f.invoice_date >= CURRENT_DATE - {self._interval_days(14)}
                           AND f.invoice_date < CURRENT_DATE - {self._interval_days(7)}
@@ -556,7 +556,7 @@ class HierarchyInsightsEngine:
                 rows = conn.execute(f"""
                     SELECT p.brand_name, SUM(f.net_value) AS brand_sales
                     FROM {schema}.fact_secondary_sales f
-                    JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.sales_hierarchy_key
+                    JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.hierarchy_key
                     JOIN {schema}.dim_product p ON f.product_key = p.product_key
                     WHERE sh.so_code = '{so_code}'
                       AND EXTRACT(MONTH FROM f.invoice_date) = EXTRACT(MONTH FROM CURRENT_DATE)
@@ -594,7 +594,7 @@ class HierarchyInsightsEngine:
                 rows = conn.execute(f"""
                     SELECT ch.channel_name, SUM(f.net_value) AS ch_sales
                     FROM {schema}.fact_secondary_sales f
-                    JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.sales_hierarchy_key
+                    JOIN {schema}.dim_sales_hierarchy sh ON f.sales_hierarchy_key = sh.hierarchy_key
                     JOIN {schema}.dim_channel ch ON f.channel_key = ch.channel_key
                     WHERE sh.so_code = '{so_code}'
                       AND EXTRACT(MONTH FROM f.invoice_date) = EXTRACT(MONTH FROM CURRENT_DATE)

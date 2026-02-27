@@ -52,6 +52,14 @@ export default function ChatTab({ user, sessionId, onSessionCreated, prefillQuer
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
+  // Auto-resize textarea whenever input changes
+  useEffect(() => {
+    const ta = inputRef.current
+    if (!ta) return
+    ta.style.height = 'auto'
+    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px'
+  }, [input])
+
   const ensureSession = async (firstUserMessage) => {
     if (activeSessionRef.current) return activeSessionRef.current
     const s = await createSession(firstUserMessage.slice(0, 80))
@@ -172,23 +180,25 @@ export default function ChatTab({ user, sessionId, onSessionCreated, prefillQuer
       >
         <div className="flex gap-2 items-end">
           <div className="flex-1 relative">
-            <input
+            <textarea
               ref={inputRef}
-              type="text"
+              rows={1}
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() } }}
               placeholder="Ask a question about your sales data…"
               disabled={loading}
-              className="w-full px-4 py-2.5 pr-10 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/50 focus:border-transparent transition-all duration-150 disabled:opacity-50"
+              className="w-full px-4 py-2.5 pr-10 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-brand-400/50 focus:border-transparent transition-all duration-150 disabled:opacity-50 resize-none overflow-hidden leading-relaxed"
               style={{
                 background: 'rgba(255,255,255,0.9)',
                 border: '1px solid rgba(99,102,241,0.18)',
                 boxShadow: '0 1px 8px rgba(99,102,241,0.07)',
+                minHeight: '42px',
+                maxHeight: '120px',
               }}
             />
             {input.length > 0 && (
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-gray-300 font-mono select-none">
+              <span className="absolute right-3 bottom-3 text-[10px] text-gray-300 font-mono select-none leading-none">
                 ↵
               </span>
             )}

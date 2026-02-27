@@ -8,6 +8,15 @@ export default function App() {
     try { return JSON.parse(sessionStorage.getItem('cpg_user')) } catch { return null }
   })
 
+  useEffect(() => {
+    const client = user?.client_id
+      ? user.client_id.charAt(0).toUpperCase() + user.client_id.slice(1)
+      : null
+    document.title = user
+      ? `CPG Sales Assistant${client ? ' — ' + client : ''}`
+      : 'CPG Sales Assistant — Sign In'
+  }, [user])
+
   const handleLogin = (userData) => {
     sessionStorage.setItem('cpg_user', JSON.stringify(userData))
     setUser(userData)

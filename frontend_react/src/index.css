@@ -13,7 +13,7 @@
     margin: 0;
   }
   body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+    font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background: linear-gradient(160deg, #f5f3ff 0%, #ede9fe 30%, #fdf4ff 70%, #f0f9ff 100%);
@@ -114,7 +114,49 @@
 .stagger-children > *:nth-child(3) { animation-delay: 120ms; }
 .stagger-children > *:nth-child(4) { animation-delay: 180ms; }
 
-/* Shimmer skeleton */
+/* ── Query result tables (rendered inside .prose via dangerouslySetInnerHTML) ── */
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  margin: 0.5rem 0;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+.prose thead th {
+  background: linear-gradient(135deg, rgba(79,70,229,0.09), rgba(124,58,237,0.09));
+  color: #4338ca;
+  font-weight: 700;
+  text-align: left;
+  padding: 0.5rem 0.875rem;
+  border-bottom: 2px solid rgba(99,102,241,0.18);
+  white-space: nowrap;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.prose tbody tr:nth-child(even) {
+  background: rgba(99,102,241,0.025);
+}
+.prose tbody tr:hover {
+  background: rgba(99,102,241,0.055);
+  transition: background 0.12s;
+}
+.prose tbody td {
+  padding: 0.4rem 0.875rem;
+  border-bottom: 1px solid rgba(0,0,0,0.045);
+  color: #374151;
+  font-variant-numeric: tabular-nums;
+}
+.prose tbody tr:last-child td {
+  border-bottom: none;
+}
+.prose p { margin: 0.25rem 0; }
+.prose ul, .prose ol { padding-left: 1.25rem; margin: 0.25rem 0; }
+.prose li { margin: 0.1rem 0; }
+.prose strong { font-weight: 700; color: #1f2937; }
+
+/* ── Shimmer skeleton */
 @keyframes shimmerPulse {
   0%   { background-position: -400px 0; }
   100% { background-position:  400px 0; }

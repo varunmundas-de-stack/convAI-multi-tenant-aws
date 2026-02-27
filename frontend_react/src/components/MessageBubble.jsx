@@ -29,6 +29,17 @@ function UserBubble({ text }) {
 function AssistantBubble({ message }) {
   const { data, error } = message
   const [showSQL, setShowSQL] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const handleCopy = () => {
+    const text = data?.response
+      ? data.response.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+      : ''
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }).catch(() => {})
+  }
 
   if (error) {
     return (
@@ -57,7 +68,7 @@ function AssistantBubble({ message }) {
       <BotAvatar />
       <div className="max-w-[88%] space-y-2">
         <div
-          className="rounded-2xl rounded-tl-sm px-4 py-3"
+          className="rounded-2xl rounded-tl-sm px-4 py-3 relative group"
           style={{
             background: 'rgba(255,255,255,0.85)',
             backdropFilter: 'blur(16px)',
@@ -66,6 +77,28 @@ function AssistantBubble({ message }) {
             boxShadow: '0 2px 16px rgba(99,102,241,0.07)',
           }}
         >
+          {/* Copy button — appears on hover */}
+          {data?.response && (
+            <button
+              onClick={handleCopy}
+              title={copied ? 'Copied!' : 'Copy response'}
+              className="absolute top-2.5 right-2.5 p-1.5 rounded-lg transition-all duration-150 opacity-0 group-hover:opacity-100"
+              style={{
+                background: copied ? 'rgba(16,185,129,0.12)' : 'rgba(0,0,0,0.04)',
+                color: copied ? '#10b981' : '#9ca3af',
+              }}
+            >
+              {copied ? (
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+              )}
+            </button>
+          )}
           {/* Natural summary for multi-row data */}
           {raw_data?.length > 0 && query_type !== 'diagnostic' && (
             <NaturalSummary data={raw_data} />

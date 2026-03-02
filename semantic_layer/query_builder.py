@@ -320,8 +320,9 @@ class ASTQueryBuilder:
             if condition:
                 conditions.append(condition)
 
-        # Add time window filter
-        time_condition = self._build_time_filter(semantic_query.time_context)
+        # Add time window filter (pass fact table so dates use data's max date, not CURRENT_DATE)
+        fact_table = metric.get('table', 'fact_secondary_sales')
+        time_condition = self._build_time_filter(semantic_query.time_context, fact_table)
         if time_condition:
             conditions.append(time_condition)
 
@@ -358,24 +359,34 @@ class ASTQueryBuilder:
                 right=Literal(value=filter_obj.values[0])
             )
 
-    def _build_time_filter(self, time_context) -> Optional[RawSQLExpr]:
-        """Build time filter condition using invoice_date on the fact table"""
+    def _build_time_filter(self, time_context, fact_table: str = 'fact_secondary_sales') -> Optional[RawSQLExpr]:
+        """Build time filter condition using invoice_date on the fact table.
+
+        Uses MAX(invoice_date) from the fact table instead of CURRENT_DATE so that
+        relative windows like 'this_month' / 'last_4_weeks' stay anchored to the
+        latest available data rather than the server clock (handles data that doesn't
+        extend to today).
+        """
         window = time_context.window if time_context else None
         if not window:
             return None
 
+        # Anchor all relative windows to the latest date present in the data.
+        # This handles the common case where the dataset ends before today.
+        md = f"(SELECT MAX(invoice_date) FROM {fact_table})"
+
         # All filters use f.invoice_date directly (avoids dependency on dim_date join)
         time_filters = {
-            'last_4_weeks':  "f.invoice_date >= CURRENT_DATE - INTERVAL 28 DAY",
-            'last_6_weeks':  "f.invoice_date >= CURRENT_DATE - INTERVAL 42 DAY",
-            'last_12_weeks': "f.invoice_date >= CURRENT_DATE - INTERVAL 84 DAY",
-            'this_month':    "EXTRACT(MONTH FROM f.invoice_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM CURRENT_DATE)",
-            'mtd':           "EXTRACT(MONTH FROM f.invoice_date) = EXTRACT(MONTH FROM CURRENT_DATE) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM CURRENT_DATE)",
-            'last_month':    "EXTRACT(MONTH FROM f.invoice_date) = EXTRACT(MONTH FROM CURRENT_DATE - INTERVAL 1 MONTH) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM CURRENT_DATE - INTERVAL 1 MONTH)",
-            'qtd':           "EXTRACT(QUARTER FROM f.invoice_date) = EXTRACT(QUARTER FROM CURRENT_DATE) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM CURRENT_DATE)",
-            'ytd':           "EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM CURRENT_DATE)",
-            'this_year':     "EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM CURRENT_DATE)",
-            'last_year':     "EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM CURRENT_DATE) - 1",
+            'last_4_weeks':  f"f.invoice_date >= {md} - INTERVAL 28 DAY",
+            'last_6_weeks':  f"f.invoice_date >= {md} - INTERVAL 42 DAY",
+            'last_12_weeks': f"f.invoice_date >= {md} - INTERVAL 84 DAY",
+            'this_month':    f"EXTRACT(MONTH FROM f.invoice_date) = EXTRACT(MONTH FROM {md}) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md})",
+            'mtd':           f"EXTRACT(MONTH FROM f.invoice_date) = EXTRACT(MONTH FROM {md}) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md})",
+            'last_month':    f"EXTRACT(MONTH FROM f.invoice_date) = EXTRACT(MONTH FROM {md} - INTERVAL 1 MONTH) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md} - INTERVAL 1 MONTH)",
+            'qtd':           f"EXTRACT(QUARTER FROM f.invoice_date) = EXTRACT(QUARTER FROM {md}) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md})",
+            'ytd':           f"EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md})",
+            'this_year':     f"EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md})",
+            'last_year':     f"EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md}) - 1",
         }
 
         sql = time_filters.get(window)

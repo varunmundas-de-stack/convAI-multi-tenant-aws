@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion, AnimatePresence } from 'framer-motion'
 import Header from '../components/Header'
 import InsightsTab from '../components/InsightsTab'
 import ChatTab from '../components/ChatTab'
@@ -12,6 +13,12 @@ const TABS = [
   { id: 'insights',  label: 'Insights',       icon: '🎯' },
   { id: 'chat',      label: 'Ask your own Q', icon: '💬' },
 ]
+
+const tabContentVariants = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: { duration: 0.2, ease: 'easeOut' } },
+  exit:    { opacity: 0, y: -8, transition: { duration: 0.15, ease: 'easeIn' } },
+}
 
 export default function DashboardPage({ user, onLogout }) {
   const navigate = useNavigate()
@@ -84,22 +91,31 @@ export default function DashboardPage({ user, onLogout }) {
           />
         )}
 
-        <div key={activeTab} className="flex-1 min-w-0 animate-fade-in">
-          {activeTab === 'dashboard' && <DashboardTab user={user} />}
-          {activeTab === 'insights'  && (
-            <InsightsTab user={user} onBadgeRefresh={refreshBadge} onAskQuery={handleInsightQuery} />
-          )}
-          {activeTab === 'chat' && (
-            <ChatTab
-              key={activeSessionId}
-              user={user}
-              sessionId={activeSessionId}
-              onSessionCreated={setActiveSessionId}
-              prefillQuery={prefillQuery}
-              onPrefillConsumed={() => setPrefillQuery(null)}
-            />
-          )}
-        </div>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            className="flex-1 min-w-0"
+            variants={tabContentVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+          >
+            {activeTab === 'dashboard' && <DashboardTab user={user} />}
+            {activeTab === 'insights'  && (
+              <InsightsTab user={user} onBadgeRefresh={refreshBadge} onAskQuery={handleInsightQuery} />
+            )}
+            {activeTab === 'chat' && (
+              <ChatTab
+                key={activeSessionId}
+                user={user}
+                sessionId={activeSessionId}
+                onSessionCreated={setActiveSessionId}
+                prefillQuery={prefillQuery}
+                onPrefillConsumed={() => setPrefillQuery(null)}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </div>
     </div>
   )
@@ -112,19 +128,31 @@ function TabPill({ tab, active, badge, onClick }) {
       className={`
         flex-1 flex items-center justify-center gap-1.5
         py-2 px-3 sm:px-4 rounded-xl text-xs sm:text-sm font-semibold
-        transition-all duration-200 relative
+        transition-colors duration-150 relative
         ${active
-          ? 'bg-white text-brand-600 shadow-sm'
-          : 'text-gray-500 hover:text-gray-700 hover:bg-white/50'
+          ? 'text-brand-600'
+          : 'text-gray-500 hover:text-gray-700'
         }
       `}
     >
-      <span className="text-sm">{tab.icon}</span>
-      <span className="truncate hidden sm:inline">{tab.label}</span>
+      {/* Animated sliding background */}
+      {active && (
+        <motion.div
+          layoutId="tab-pill"
+          className="absolute inset-0 rounded-xl bg-white shadow-sm"
+          transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+        />
+      )}
+      <span className="relative z-10 text-sm">{tab.icon}</span>
+      <span className="relative z-10 truncate hidden sm:inline">{tab.label}</span>
       {badge > 0 && (
-        <span className="bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[16px] text-center leading-none flex-shrink-0">
+        <motion.span
+          className="relative z-10 bg-rose-500 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full min-w-[16px] text-center leading-none flex-shrink-0"
+          animate={{ scale: [1, 1.3, 1] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+        >
           {badge > 9 ? '9+' : badge}
-        </span>
+        </motion.span>
       )}
     </button>
   )

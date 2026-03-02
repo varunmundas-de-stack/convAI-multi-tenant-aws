@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
 import { fetchInsights, markInsightRead } from '../api/client'
 
 const PRIORITY_STYLE = {
@@ -13,6 +14,16 @@ const TYPE_BADGE = {
   alert:          'bg-orange-100 text-orange-700',
   recommendation: 'bg-emerald-100 text-emerald-700',
   opportunity:    'bg-violet-100 text-violet-700',
+}
+
+const cardContainer = {
+  animate: {
+    transition: { staggerChildren: 0.06, delayChildren: 0.05 },
+  },
+}
+const cardItem = {
+  initial: { opacity: 0, y: 24 },
+  animate: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 280, damping: 24 } },
 }
 
 export default function InsightsTab({ user, onBadgeRefresh, onAskQuery }) {
@@ -115,13 +126,18 @@ export default function InsightsTab({ user, onBadgeRefresh, onAskQuery }) {
 
         {/* Cards grid */}
         {!loading && !error && insights.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {insights.map((ins, i) => (
-              <div key={ins.insight_id} className="animate-slide-in" style={{ animationDelay: `${i * 40}ms` }}>
+          <motion.div
+            className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+            variants={cardContainer}
+            initial="initial"
+            animate="animate"
+          >
+            {insights.map((ins) => (
+              <motion.div key={ins.insight_id} variants={cardItem}>
                 <InsightCard insight={ins} onClick={() => handleCardClick(ins)} />
-              </div>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
 
         {!loading && insights.length > 0 && (
@@ -139,9 +155,9 @@ function InsightCard({ insight: ins, onClick }) {
   const changePct = ins.metric_change_pct
 
   return (
-    <div
+    <motion.div
       onClick={onClick}
-      className="relative rounded-2xl p-4 cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-card-hover select-none group"
+      className="relative rounded-2xl p-4 cursor-pointer select-none group"
       style={{
         background: `rgba(255,255,255,0.82)`,
         backdropFilter: 'blur(16px)',
@@ -150,10 +166,16 @@ function InsightCard({ insight: ins, onClick }) {
         borderLeft: `4px solid ${p.bar}`,
         boxShadow: '0 2px 12px rgba(99,102,241,0.06)',
       }}
+      whileHover={{ y: -5, scale: 1.01 }}
+      transition={{ type: 'spring', stiffness: 300, damping: 20 }}
     >
-      {/* Unread dot */}
+      {/* Unread dot with pulse */}
       {isUnread && (
-        <span className="absolute top-3.5 right-3.5 w-2 h-2 rounded-full bg-rose-500 shadow-glow-sm" />
+        <motion.span
+          className="absolute top-3.5 right-3.5 w-2 h-2 rounded-full bg-rose-500"
+          animate={{ scale: [1, 1.4, 1] }}
+          transition={{ repeat: Infinity, duration: 1.5 }}
+        />
       )}
 
       {/* Tags */}
@@ -193,6 +215,6 @@ function InsightCard({ insight: ins, onClick }) {
       )}
 
       <p className="text-[10px] text-gray-300 mt-2 font-medium">Tap to explore in chat →</p>
-    </div>
+    </motion.div>
   )
 }

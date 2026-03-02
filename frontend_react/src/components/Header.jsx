@@ -1,3 +1,5 @@
+import { motion } from 'framer-motion'
+
 const ROLE_CONFIG = {
   NSM:     { color: 'bg-purple-500/20 text-purple-200 border-purple-400/30', label: 'National' },
   ZSM:     { color: 'bg-blue-500/20   text-blue-200   border-blue-400/30',   label: 'Zone' },
@@ -45,20 +47,24 @@ export default function Header({ user, onLogout, onMenuToggle }) {
             </svg>
           </div>
           <div className="min-w-0">
-            <h1 className="text-sm font-black text-white leading-tight tracking-tight">CPG Sales Assistant</h1>
+            <h1 className="text-sm font-black text-white leading-tight tracking-tight text-gradient-animated">CPG Sales Assistant</h1>
             <p className="text-white/40 text-[11px] leading-tight hidden sm:block">AI-powered analytics</p>
           </div>
         </div>
 
         {/* User pill — center */}
-        <div className="hidden sm:flex items-center gap-2.5 min-w-0"
-             style={{
-               background: 'rgba(255,255,255,0.10)',
-               backdropFilter: 'blur(16px)',
-               border: '1px solid rgba(255,255,255,0.15)',
-               borderRadius: '1rem',
-               padding: '6px 14px 6px 8px',
-             }}>
+        <motion.div
+          className="hidden sm:flex items-center gap-2.5 min-w-0"
+          style={{
+            background: 'rgba(255,255,255,0.10)',
+            backdropFilter: 'blur(16px)',
+            border: '1px solid rgba(255,255,255,0.15)',
+            borderRadius: '1rem',
+            padding: '6px 14px 6px 8px',
+          }}
+          whileHover={{ scale: 1.03 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+        >
           {/* Avatar */}
           <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black text-white flex-shrink-0"
                style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.7), rgba(99,102,241,0.7))' }}>
@@ -78,7 +84,7 @@ export default function Header({ user, onLogout, onMenuToggle }) {
               {cfg.label}
             </span>
           )}
-        </div>
+        </motion.div>
 
         {/* Sign out */}
         <button

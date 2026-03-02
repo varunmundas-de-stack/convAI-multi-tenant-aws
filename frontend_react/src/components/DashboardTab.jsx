@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { motion } from 'framer-motion'
 import {
   Chart as ChartJS,
   CategoryScale, LinearScale, BarElement, LineElement, PointElement,
@@ -77,17 +78,58 @@ const hoverCursor = {
   },
 }
 
+// ── useCountUp hook ───────────────────────────────────────────────────────────
+function useCountUp(target, duration = 1200) {
+  const [value, setValue] = useState(0)
+  const triggered = useRef(false)
+
+  useEffect(() => {
+    if (target == null || typeof target !== 'number' || triggered.current) return
+    triggered.current = true
+    const start = performance.now()
+
+    const tick = (now) => {
+      const elapsed = now - start
+      const progress = Math.min(elapsed / duration, 1)
+      // ease-out cubic
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setValue(Math.round(eased * target))
+      if (progress < 1) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  }, [target, duration])
+
+  return value
+}
+
+// ── Framer motion variants ────────────────────────────────────────────────────
+const kpiContainer = {
+  animate: { transition: { staggerChildren: 0.08 } },
+}
+const kpiItem = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0, transition: { type: 'spring', stiffness: 300, damping: 24 } },
+}
+
 // ── KPI Card ──────────────────────────────────────────────────────────────────
-function KpiCard({ cfg, value, loading }) {
+function KpiCard({ cfg, value, rawValue, loading }) {
+  const salesCount  = useCountUp(cfg.kind === 'sales'    ? rawValue : null)
+  const invoiceCount = useCountUp(cfg.kind === 'invoices' ? rawValue : null)
+
   if (loading) {
-    return (
-      <div className="skeleton rounded-2xl h-28" />
-    )
+    return <div className="skeleton rounded-2xl h-28" />
   }
+
+  let displayValue = value
+  if (cfg.kind === 'sales' && typeof rawValue === 'number') {
+    displayValue = fmt(salesCount)
+  } else if (cfg.kind === 'invoices' && typeof rawValue === 'number') {
+    displayValue = invoiceCount.toLocaleString('en-IN')
+  }
+
   return (
     <div
-      className="rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden cursor-default
-                 transition-all duration-300 hover:-translate-y-1 select-none"
+      className="rounded-2xl p-5 flex flex-col justify-between relative overflow-hidden cursor-default select-none"
       style={{ background: cfg.gradient, boxShadow: cfg.shadow }}
     >
       {/* Background pattern */}
@@ -100,14 +142,12 @@ function KpiCard({ cfg, value, loading }) {
         <span className="text-[11px] font-bold text-white/70 uppercase tracking-widest">{cfg.label}</span>
         <span className="text-lg">{cfg.icon}</span>
       </div>
-      <div className="text-white font-black text-2xl leading-tight truncate relative mt-1">{value}</div>
+      <div className="text-white font-black text-2xl leading-tight truncate relative mt-1">{displayValue}</div>
     </div>
   )
 }
 
 // ── Glass Chart Card ──────────────────────────────────────────────────────────
-const CARD_ACCENTS = ['#6366f1', '#a855f7', '#14b8a6', '#f97316']
-
 function ChartCard({ title, hint, accentColor = '#6366f1', loading, children }) {
   if (loading) {
     return (
@@ -440,6 +480,13 @@ export default function DashboardTab() {
     data.kpis.top_region,
   ] : ['—', '—', '—', '—']
 
+  const kpiRaw = data ? [
+    data.kpis.total_sales,
+    data.kpis.total_invoices,
+    null,
+    null,
+  ] : [null, null, null, null]
+
   return (
     <div className="h-full overflow-y-auto scrollbar-thin scroll-smooth-ios p-4 sm:p-5 space-y-4">
 
@@ -449,21 +496,23 @@ export default function DashboardTab() {
           <h2 className="text-lg font-black text-gradient leading-tight">Sales Dashboard</h2>
           <p className="text-xs text-gray-400 mt-0.5">Last 30 days · click any chart to explore</p>
         </div>
-        <button
+        <motion.button
           onClick={load}
           disabled={loading}
-          className="flex items-center gap-1.5 text-xs font-bold text-brand-600 px-3.5 py-2 rounded-xl transition-all duration-150 disabled:opacity-40 hover:shadow-glow-sm active:scale-95"
+          className="flex items-center gap-1.5 text-xs font-bold text-brand-600 px-3.5 py-2 rounded-xl disabled:opacity-40"
           style={{
             background: 'rgba(255,255,255,0.85)',
             border: '1px solid rgba(99,102,241,0.2)',
             backdropFilter: 'blur(12px)',
           }}
+          whileTap={{ rotate: 360 }}
+          transition={{ duration: 0.5 }}
         >
           <svg className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
           Refresh
-        </button>
+        </motion.button>
       </div>
 
       {/* ── Error ────────────────────────────────────────────────── */}
@@ -476,17 +525,27 @@ export default function DashboardTab() {
       )}
 
       {/* ── KPI grid ─────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 stagger-children">
+      <motion.div
+        className="grid grid-cols-2 sm:grid-cols-4 gap-3"
+        variants={kpiContainer}
+        initial="initial"
+        animate="animate"
+      >
         {KPI_CARDS.map((cfg, i) => (
-          <div key={cfg.kind} className="animate-slide-in" style={{ animationDelay: `${i * 60}ms` }}>
-            <KpiCard cfg={cfg} value={kpiValues[i]} loading={loading} />
-          </div>
+          <motion.div key={cfg.kind} variants={kpiItem}>
+            <KpiCard cfg={cfg} value={kpiValues[i]} rawValue={kpiRaw[i]} loading={loading} />
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       {/* ── Brand bar + Channel doughnut ─────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="md:col-span-2 animate-slide-in" style={{ animationDelay: '80ms' }}>
+        <motion.div
+          className="md:col-span-2"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, type: 'spring', stiffness: 260, damping: 24 }}
+        >
           <ChartCard
             title="Sales by Brand — Top 8"
             hint="Click a bar to see SKU breakdown"
@@ -499,8 +558,13 @@ export default function DashboardTab() {
               </div>
             )}
           </ChartCard>
-        </div>
-        <div className="md:col-span-1 animate-slide-in" style={{ animationDelay: '140ms' }}>
+        </motion.div>
+        <motion.div
+          className="md:col-span-1"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.18, type: 'spring', stiffness: 260, damping: 24 }}
+        >
           <ChartCard
             title="Sales by Channel"
             hint="Click a segment to see brands"
@@ -513,11 +577,15 @@ export default function DashboardTab() {
               </div>
             )}
           </ChartCard>
-        </div>
+        </motion.div>
       </div>
 
       {/* ── Weekly trend ─────────────────────────────────────────── */}
-      <div className="animate-slide-in" style={{ animationDelay: '200ms' }}>
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.26, type: 'spring', stiffness: 260, damping: 24 }}
+      >
         <ChartCard
           title="Weekly Sales Trend — Last 8 Weeks"
           hint="Click a data point to see daily breakdown"
@@ -530,7 +598,7 @@ export default function DashboardTab() {
             </div>
           )}
         </ChartCard>
-      </div>
+      </motion.div>
 
       {/* Drill-down panel */}
       <DrilldownPanel state={drilldown} onClose={() => setDrilldown(null)} />

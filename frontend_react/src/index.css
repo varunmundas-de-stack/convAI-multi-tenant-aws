@@ -156,6 +156,55 @@
 .prose li { margin: 0.1rem 0; }
 .prose strong { font-weight: 700; color: #1f2937; }
 
+/* ── Floating emoji particles */
+@keyframes float-emoji {
+  0%   { transform: translateY(0px) rotate(0deg); opacity: 0.7; }
+  25%  { transform: translateY(-18px) rotate(8deg); opacity: 0.9; }
+  50%  { transform: translateY(-8px) rotate(-5deg); opacity: 0.75; }
+  75%  { transform: translateY(-24px) rotate(10deg); opacity: 0.85; }
+  100% { transform: translateY(0px) rotate(0deg); opacity: 0.7; }
+}
+.emoji-float {
+  position: fixed;
+  pointer-events: none;
+  user-select: none;
+  z-index: 0;
+  animation: float-emoji linear infinite;
+}
+
+/* ── Animated gradient text shimmer */
+@keyframes gradient-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.text-gradient-animated {
+  background: linear-gradient(270deg, #4f46e5, #7c3aed, #9333ea, #ec4899, #7c3aed, #4f46e5);
+  background-size: 400% 400%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: gradient-shift 6s ease infinite;
+}
+
+/* ── Wiggle */
+@keyframes wiggle {
+  0%,100% { transform: rotate(0deg); }
+  20%      { transform: rotate(-3deg); }
+  40%      { transform: rotate(3deg); }
+  60%      { transform: rotate(-2deg); }
+  80%      { transform: rotate(2deg); }
+}
+.animate-wiggle { animation: wiggle 0.5s ease; }
+
+/* ── Pop */
+@keyframes pop {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+.animate-pop { animation: pop 0.3s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+
 /* ── Shimmer skeleton */
 @keyframes shimmerPulse {
   0%   { background-position: -400px 0; }

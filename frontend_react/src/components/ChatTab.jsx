@@ -1,9 +1,38 @@
 import { useState, useEffect, useRef } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   fetchSuggestions, sendQueryStream,
   fetchSessionMessages, saveMessage, createSession,
 } from '../api/client'
 import MessageBubble from './MessageBubble'
+
+const FUN_MSGS = [
+  '⚡ Crunching your numbers...',
+  '🤖 Asking the data gods...',
+  '🔮 Summoning insights...',
+  '🧠 Big brain moment loading...',
+  '📊 Chart time incoming...',
+  '✨ Magic in progress...',
+  '🎯 Locking in on your answer...',
+]
+
+function useInterval(callback, delay) {
+  const savedCallback = useRef(callback)
+  useEffect(() => { savedCallback.current = callback }, [callback])
+  useEffect(() => {
+    if (delay == null) return
+    const id = setInterval(() => savedCallback.current(), delay)
+    return () => clearInterval(id)
+  }, [delay])
+}
+
+const chipContainer = {
+  animate: { transition: { staggerChildren: 0.05, delayChildren: 0.1 } },
+}
+const chipItem = {
+  initial: { opacity: 0, scale: 0.8 },
+  animate: { opacity: 1, scale: 1, transition: { type: 'spring', stiffness: 300, damping: 20 } },
+}
 
 export default function ChatTab({ user, sessionId, onSessionCreated, prefillQuery, onPrefillConsumed }) {
   const clientLabel = (user?.client_id || '').charAt(0).toUpperCase() + (user?.client_id || '').slice(1)
@@ -13,11 +42,18 @@ export default function ChatTab({ user, sessionId, onSessionCreated, prefillQuer
   const [input, setInput]             = useState('')
   const [loading, setLoading]         = useState(false)
   const [histLoading, setHistLoading] = useState(false)
-  const [progressStep, setProgressStep] = useState(null)  // live streaming step
+  const [progressStep, setProgressStep] = useState(null)
+  const [funMsgIdx, setFunMsgIdx]     = useState(0)
 
+  const hasConfettied    = useRef(false)
   const activeSessionRef = useRef(sessionId)
   const bottomRef        = useRef(null)
   const inputRef         = useRef(null)
+
+  // Rotate fun messages while loading
+  useInterval(() => {
+    setFunMsgIdx(i => (i + 1) % FUN_MSGS.length)
+  }, loading ? 1800 : null)
 
   useEffect(() => {
     fetchSuggestions().then(setSuggestions).catch(() => {})
@@ -72,9 +108,12 @@ export default function ChatTab({ user, sessionId, onSessionCreated, prefillQuer
     const q = directQuery ? directQuery.trim() : input.trim()
     if (!q || loading) return
 
+    const isFirstAnswer = !hasConfettied.current
+
     setMessages(prev => [...prev.filter(m => !m.isWelcome), { id: `u-${Date.now()}`, role: 'user', text: q }])
     setInput('')
     setLoading(true)
+    setFunMsgIdx(0)
     setProgressStep({ step: 'intent', msg: '🧠 Understanding your question…' })
 
     try {
@@ -84,7 +123,13 @@ export default function ChatTab({ user, sessionId, onSessionCreated, prefillQuer
       const data = await sendQueryStream(q, (evt) => setProgressStep(evt))
 
       setProgressStep(null)
-      const assistantMsg = { id: `a-${Date.now()}`, role: 'assistant', data }
+      const assistantMsg = {
+        id: `a-${Date.now()}`,
+        role: 'assistant',
+        data,
+        isFirstAnswer,
+      }
+      if (isFirstAnswer) hasConfettied.current = true
       setMessages(prev => [...prev, assistantMsg])
 
       await saveMessage(sid, {
@@ -122,30 +167,30 @@ export default function ChatTab({ user, sessionId, onSessionCreated, prefillQuer
           }}
         >
           <p className="text-[10px] font-black text-gray-400 mb-2 uppercase tracking-widest">Try asking</p>
-          <div className="flex gap-2 overflow-x-auto scrollbar-none pb-0.5">
+          <motion.div
+            className="flex gap-2 overflow-x-auto scrollbar-none pb-0.5"
+            variants={chipContainer}
+            initial="animate"
+            animate="animate"
+          >
             {suggestions.map((s, i) => (
-              <button
+              <motion.button
                 key={i}
+                variants={chipItem}
                 onClick={() => handleSend(s)}
-                className="flex-shrink-0 text-xs text-gray-600 hover:text-brand-600 px-3.5 py-1.5 rounded-full transition-all duration-150 font-semibold whitespace-nowrap"
+                className="flex-shrink-0 text-xs text-gray-600 hover:text-brand-600 px-3.5 py-1.5 rounded-full font-semibold whitespace-nowrap"
                 style={{
                   background: 'rgba(255,255,255,0.9)',
                   border: '1px solid rgba(99,102,241,0.15)',
                   boxShadow: '0 1px 6px rgba(99,102,241,0.06)',
                 }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = 'rgba(99,102,241,0.08)'
-                  e.currentTarget.style.borderColor = 'rgba(99,102,241,0.35)'
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.9)'
-                  e.currentTarget.style.borderColor = 'rgba(99,102,241,0.15)'
-                }}
+                whileHover={{ scale: 1.05, borderColor: 'rgba(99,102,241,0.35)' }}
+                whileTap={{ scale: 0.95 }}
               >
                 {s}
-              </button>
+              </motion.button>
             ))}
-          </div>
+          </motion.div>
         </div>
       )}
 
@@ -163,7 +208,7 @@ export default function ChatTab({ user, sessionId, onSessionCreated, prefillQuer
           messages.map(msg => <MessageBubble key={msg.id} message={msg} />)
         )}
 
-        {loading && <TypingIndicator step={progressStep} />}
+        {loading && <TypingIndicator step={progressStep} funMsg={FUN_MSGS[funMsgIdx]} />}
         <div ref={bottomRef} />
       </div>
 
@@ -203,16 +248,18 @@ export default function ChatTab({ user, sessionId, onSessionCreated, prefillQuer
               </span>
             )}
           </div>
-          <button
+          <motion.button
             onClick={handleSend}
             disabled={loading || !input.trim()}
-            className="text-white px-5 py-2.5 rounded-2xl font-bold text-sm active:scale-95 transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
+            className="text-white px-5 py-2.5 rounded-2xl font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
             style={{
               background: loading || !input.trim()
                 ? 'linear-gradient(135deg, #a5b4fc, #c4b5fd)'
                 : 'linear-gradient(135deg, #4f46e5, #7c3aed, #9333ea)',
               boxShadow: loading || !input.trim() ? 'none' : '0 4px 16px rgba(99,102,241,0.4)',
             }}
+            whileTap={{ scale: 0.88, rotate: -3 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 17 }}
           >
             {loading ? (
               <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
@@ -220,7 +267,7 @@ export default function ChatTab({ user, sessionId, onSessionCreated, prefillQuer
                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
               </svg>
             ) : 'Send'}
-          </button>
+          </motion.button>
         </div>
       </div>
     </div>
@@ -251,12 +298,12 @@ const STEPS = [
   { key: 'format',   label: 'Formatting'    },
 ]
 
-function TypingIndicator({ step }) {
+function TypingIndicator({ step, funMsg }) {
   const activeIdx = step ? STEPS.findIndex(s => s.key === step.step) : 0
 
   return (
     <div className="flex items-start gap-2 animate-slide-in">
-      <BotAvatar />
+      <BotAvatar pulse />
       <div
         className="rounded-2xl rounded-tl-sm px-4 py-3 min-w-[220px]"
         style={{
@@ -267,19 +314,25 @@ function TypingIndicator({ step }) {
           boxShadow: '0 2px 16px rgba(99,102,241,0.10)',
         }}
       >
-        {/* Live step message */}
-        {step?.msg && (
-          <p className="text-xs font-semibold text-violet-600 mb-2.5 tracking-tight">
-            {step.msg}
-          </p>
-        )}
+        {/* Fun rotating message */}
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={funMsg}
+            className="text-xs font-semibold text-violet-600 mb-2.5 tracking-tight"
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            transition={{ duration: 0.25 }}
+          >
+            {funMsg}
+          </motion.p>
+        </AnimatePresence>
 
         {/* Step pills */}
         <div className="flex gap-1.5 flex-wrap">
           {STEPS.map((s, i) => {
             const done    = i < activeIdx
             const active  = i === activeIdx
-            const pending = i > activeIdx
             return (
               <span
                 key={s.key}
@@ -315,19 +368,27 @@ function TypingIndicator({ step }) {
   )
 }
 
-function BotAvatar() {
+function BotAvatar({ pulse }) {
   return (
-    <div
-      className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
-      style={{
-        background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
-        boxShadow: '0 2px 10px rgba(99,102,241,0.4)',
-      }}
-    >
-      <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-      </svg>
+    <div className="relative flex-shrink-0 mt-0.5">
+      {pulse && (
+        <div
+          className="absolute inset-0 rounded-full animate-ping opacity-30"
+          style={{ background: 'rgba(99,102,241,0.5)' }}
+        />
+      )}
+      <div
+        className="w-7 h-7 rounded-full flex items-center justify-center relative"
+        style={{
+          background: 'linear-gradient(135deg, #4f46e5, #7c3aed)',
+          boxShadow: '0 2px 10px rgba(99,102,241,0.4)',
+        }}
+      >
+        <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+            d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+        </svg>
+      </div>
     </div>
   )
 }

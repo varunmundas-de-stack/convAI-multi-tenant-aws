@@ -1353,6 +1353,44 @@ def save_message(session_id):
     return jsonify({'message_id': mid}), 201
 
 
+# ── MCP developer endpoint ───────────────────────────────────────────────────
+@app.route('/api/admin/sql', methods=['POST'])
+@login_required
+def admin_sql():
+    """Direct SQL execution for MCP/developer use. Admin role required."""
+    if current_user.role not in ('admin', 'NSM'):
+        return jsonify({'success': False, 'error': 'Admin role required'}), 403
+
+    body   = request.get_json() or {}
+    sql    = (body.get('sql') or '').strip()
+    tenant = (body.get('tenant') or current_user.client_id or '').strip().lower()
+
+    if not sql:
+        return jsonify({'success': False, 'error': 'sql is required'}), 400
+
+    # Safety: block destructive statements
+    first_word = sql.split()[0].upper() if sql.split() else ''
+    if first_word not in ('SELECT', 'WITH', 'EXPLAIN', 'DESCRIBE', 'SHOW'):
+        return jsonify({'success': False, 'error': 'Only SELECT/WITH/EXPLAIN queries are allowed'}), 400
+
+    # Map tenant name to schema
+    schema_map = {'nestle': 'client_nestle', 'unilever': 'client_unilever', 'itc': 'client_itc'}
+    schema = schema_map.get(tenant)
+    if not schema:
+        return jsonify({'success': False, 'error': f"Unknown tenant '{tenant}'"}), 400
+
+    try:
+        sl = SemanticLayer(client_id=tenant)
+        conn = sl.get_connection()
+        conn.execute(f"SET search_path TO {schema}")
+        result = conn.execute(sql)
+        cols = [d[0] for d in result.description]
+        rows = [dict(zip(cols, row)) for row in result.fetchall()]
+        return jsonify({'success': True, 'rows': rows, 'count': len(rows)})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     print("="*60)
     print("CPG Conversational AI Chatbot (RBAC Enabled)")

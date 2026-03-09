@@ -1373,17 +1373,13 @@ def admin_sql():
     if first_word not in ('SELECT', 'WITH', 'EXPLAIN', 'DESCRIBE', 'SHOW'):
         return jsonify({'success': False, 'error': 'Only SELECT/WITH/EXPLAIN queries are allowed'}), 400
 
-    # Map tenant name to schema
     schema_map = {'nestle': 'client_nestle', 'unilever': 'client_unilever', 'itc': 'client_itc'}
-    schema = schema_map.get(tenant)
-    if not schema:
+    if tenant not in schema_map:
         return jsonify({'success': False, 'error': f"Unknown tenant '{tenant}'"}), 400
 
     try:
-        sl = SemanticLayer(client_id=tenant)
-        conn = sl.get_connection()
-        conn.execute(f"SET search_path TO {schema}")
-        result = conn.execute(sql)
+        con = _get_analytics_conn(tenant)
+        result = con.execute(sql)
         cols = [d[0] for d in result.description]
         rows = [dict(zip(cols, row)) for row in result.fetchall()]
         return jsonify({'success': True, 'rows': rows, 'count': len(rows)})

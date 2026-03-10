@@ -151,10 +151,17 @@ class IntentParserV2:
             model="claude-haiku-4-5-20251001",
             max_tokens=1000,
             temperature=0,
-            system=self._get_system_prompt(),
+            system=[
+                {
+                    "type": "text",
+                    "text": self._get_system_prompt(),
+                    "cache_control": {"type": "ephemeral"}
+                }
+            ],
             messages=[
                 {"role": "user", "content": prompt}
-            ]
+            ],
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"}
         )
 
         intent_dict = self._extract_json(response.content[0].text)

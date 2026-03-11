@@ -297,9 +297,10 @@ def _check_scope(question, client_id, username):
         'who is', 'who was', 'who are', 'what is a', 'what are the',
         'when was', 'where is', 'where was', 'how to', 'how do i',
         'weather', 'news', 'stock market', 'sports', 'politics',
-        'calculate', 'math', 'geography', 'history', 'science',
         'president', 'prime minister', 'actor', 'actress', 'celebrity',
         'movie', 'film', 'song', 'music', 'cricket', 'football',
+        # Note: 'geography', 'history', 'calculate', 'science' intentionally removed —
+        # they appear in legitimate sales queries like "sales by geography", "sales history"
     ]
     analytics_exceptions = ['what is the', 'what are my', 'how much', 'how many',
                             'how is', 'where is my', 'when is my']

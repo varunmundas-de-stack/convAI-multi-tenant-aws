@@ -24,7 +24,7 @@ export default function LoginPage({ onLogin }) {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(160deg, #eff6ff 0%, #e0e7ff 50%, #ede9fe 100%)' }}>
       <motion.div
         className="w-full max-w-sm"
         initial={{ opacity: 0, y: 24 }}

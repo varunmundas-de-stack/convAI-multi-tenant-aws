@@ -198,6 +198,27 @@ def load_user(user_id):
 
 # ── Shared scope-checking helpers (used by both /api/query and /api/query/stream) ──
 
+def _needs_time_clarification(question: str) -> bool:
+    """Return True when the question asks for a ranking/comparison but omits a time period."""
+    q = question.lower()
+    ranking_words = {
+        'top', 'best', 'worst', 'highest', 'lowest', 'most', 'least',
+        'bottom', 'leading', 'compare', 'vs', 'versus', 'ranking', 'ranked',
+    }
+    time_words = {
+        'last', 'this', 'past', 'previous', 'next',
+        'week', 'month', 'quarter', 'year', 'annual', 'monthly', 'weekly', 'quarterly',
+        'today', 'yesterday', 'ytd', 'mtd', 'qtd',
+        'january', 'february', 'march', 'april', 'may', 'june',
+        'july', 'august', 'september', 'october', 'november', 'december',
+        'jan', 'feb', 'mar', 'apr', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
+        'q1', 'q2', 'q3', 'q4',
+    }
+    words = set(re.split(r'\W+', q))
+    has_ranking = bool(words & ranking_words)
+    has_time = bool(words & time_words) or bool(re.search(r'\b20\d{2}\b', q))
+    return has_ranking and not has_time
+
 def _kw_match(text, keywords):
     """Word-boundary aware keyword matching."""
     for kw in keywords:
@@ -691,6 +712,27 @@ def process_query_stream():
             scope_result = _check_scope(question, client_id, username)
             if scope_result is not None:
                 yield _sse({"type": "result", **scope_result})
+                return
+
+            # ── Clarification: ask for time period when missing ────────
+            if _needs_time_clarification(question):
+                yield _sse({
+                    "type": "result",
+                    "success": True,
+                    "response": (
+                        "<p>Could you please specify the <strong>time period</strong> you want to analyse?</p>"
+                        "<p style='margin-top:8px'>For example:</p>"
+                        "<ul style='margin-top:4px;padding-left:18px'>"
+                        "<li>Top brands by sales <strong>last month</strong></li>"
+                        "<li>Top brands by sales <strong>in Q4 2025</strong></li>"
+                        "<li>Top brands by sales <strong>this year</strong></li>"
+                        "<li>Top brands by sales <strong>last 4 weeks</strong></li>"
+                        "</ul>"
+                    ),
+                    "query_type": "clarification",
+                    "raw_data": None,
+                    "metadata": None,
+                })
                 return
 
             # ── Cache check — skip LLM+DB on repeated questions ────────
@@ -1313,8 +1355,8 @@ def save_message(session_id):
     metadata  = body.get('metadata')   # dict or None
     title_hint = body.get('title_hint') # used to auto-title session from first user msg
 
-    if role not in ('user', 'assistant') or not content:
-        return jsonify({'error': 'role and content are required'}), 400
+    if role not in ('user', 'assistant'):
+        return jsonify({'error': 'role must be user or assistant'}), 400
 
     mid = str(uuid.uuid4())
     raw_str  = _json.dumps(raw_data)  if raw_data  is not None else None

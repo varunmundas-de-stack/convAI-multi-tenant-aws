@@ -37,7 +37,6 @@ function UserBubble({ text }) {
 
 function AssistantBubble({ message }) {
   const { data, error, isFirstAnswer } = message
-  const [showSQL, setShowSQL] = useState(false)
   const [copied, setCopied] = useState(false)
 
   // Confetti on first answer
@@ -167,32 +166,6 @@ function AssistantBubble({ message }) {
             </div>
           )}
 
-          {/* SQL toggle */}
-          {metadata?.sql && (
-            <div className="mt-3">
-              <button
-                onClick={(e) => { e.stopPropagation(); setShowSQL(v => !v) }}
-                className="text-xs text-gray-400 hover:text-brand-500 flex items-center gap-1 transition-colors"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-                </svg>
-                {showSQL ? 'Hide SQL' : 'Show SQL'}
-              </button>
-              {showSQL && (
-                <pre
-                  className="mt-2 text-xs rounded-xl p-3 overflow-x-auto font-mono leading-relaxed"
-                  style={{
-                    background: 'linear-gradient(135deg, #0f0c29, #302b63, #24243e)',
-                    color: '#86efac',
-                    border: '1px solid rgba(99,102,241,0.2)',
-                  }}
-                >
-                  {metadata.sql}
-                </pre>
-              )}
-            </div>
-          )}
 
           {/* Metadata footer */}
           {metadata && (
@@ -284,31 +257,6 @@ function BotAvatar() {
 }
 
 function WelcomeCard({ name, client }) {
-  const sections = [
-    {
-      delay: 0.1,
-      style: { background: 'rgba(16,185,129,0.07)', borderLeft: '3px solid #10b981' },
-      header: <p className="font-bold text-emerald-700 mb-1">✓ You CAN ask about:</p>,
-      items: [
-        `${client} sales, brands, SKUs and products`,
-        'Distribution channels and customer insights',
-        'Time-based trends and performance metrics',
-        'Diagnostic analysis ("Why did sales change?")',
-      ],
-      itemClass: 'text-emerald-600',
-    },
-    {
-      delay: 0.18,
-      style: { background: 'rgba(244,63,94,0.07)', borderLeft: '3px solid #f43f5e' },
-      header: <p className="font-bold text-rose-700 mb-1">✗ You CANNOT ask about:</p>,
-      items: [
-        "Other companies' data",
-        'Database metadata or schema information',
-      ],
-      itemClass: 'text-rose-600',
-    },
-  ]
-
   return (
     <motion.div
       className="flex gap-2"
@@ -320,42 +268,35 @@ function WelcomeCard({ name, client }) {
       <div
         className="rounded-2xl rounded-tl-sm overflow-hidden max-w-[88%]"
         style={{
-          background: 'rgba(255,255,255,0.85)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          border: '1px solid rgba(255,255,255,0.9)',
-          boxShadow: '0 4px 20px rgba(99,102,241,0.1)',
+          background: 'rgba(255,255,255,0.92)',
+          border: '1px solid rgba(0,0,0,0.08)',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
         }}
       >
-        {/* Gradient header strip */}
-        <div
-          className="px-4 py-3"
-          style={{ background: 'linear-gradient(135deg, #4f46e5, #7c3aed, #9333ea)' }}
-        >
-          <p className="text-sm font-black text-white leading-snug">
-            Hey {name}! 👋
-          </p>
-          <p className="text-xs text-white/70 mt-0.5">
-            Welcome to <strong className="text-white">{client}</strong> Analytics
+        <div className="px-4 pt-4 pb-1">
+          <p className="text-sm font-semibold text-gray-800">Hello, {name}</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Welcome to <span className="font-medium text-gray-700">{client} Analytics</span>. How can I help you today?
           </p>
         </div>
 
-        <div className="px-4 py-3 text-xs space-y-2">
-          {sections.map((sec, i) => (
-            <motion.div
-              key={i}
-              className="px-3 py-2 rounded-xl"
-              style={sec.style}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: sec.delay, type: 'spring', stiffness: 260, damping: 22 }}
-            >
-              {sec.header}
-              <ul className={`${sec.itemClass} space-y-0.5 list-disc list-inside`}>
-                {sec.items.map((item, j) => <li key={j}>{item}</li>)}
-              </ul>
-            </motion.div>
-          ))}
+        <div className="px-4 pb-4 pt-3 text-xs space-y-2">
+          <div className="px-3 py-2 rounded-lg" style={{ background: 'rgba(16,185,129,0.06)', borderLeft: '2px solid #10b981' }}>
+            <p className="font-semibold text-gray-600 mb-1">You can ask about:</p>
+            <ul className="text-gray-500 space-y-0.5 list-disc list-inside">
+              <li>{client} sales, brands, SKUs and products</li>
+              <li>Distribution channels and customer insights</li>
+              <li>Time-based trends and performance metrics</li>
+              <li>Diagnostic analysis (e.g. why did sales change)</li>
+            </ul>
+          </div>
+          <div className="px-3 py-2 rounded-lg" style={{ background: 'rgba(244,63,94,0.05)', borderLeft: '2px solid #f43f5e' }}>
+            <p className="font-semibold text-gray-600 mb-1">Out of scope:</p>
+            <ul className="text-gray-500 space-y-0.5 list-disc list-inside">
+              <li>Other companies' data</li>
+              <li>Database metadata or schema information</li>
+            </ul>
+          </div>
         </div>
       </div>
     </motion.div>

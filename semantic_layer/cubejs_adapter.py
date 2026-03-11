@@ -92,8 +92,11 @@ FILTER_OP_MAP: dict[str, str] = {
 TIME_WINDOW_MAP: dict[str, str] = {
     'this_month':   'this month',
     'last_month':   'last month',
-    'this_quarter': 'this quarter',
-    'last_quarter': 'last quarter',
+    'this_quarter':  'this quarter',
+    'last_quarter':  'last quarter',
+    'last_2_weeks':  'last 2 weeks',
+    'last_3_months': 'last 3 months',
+    'last_6_months': 'last 6 months',
     'this_year':    'this year',
     'last_year':    'last year',
     'last_4_weeks': 'last 4 weeks',
@@ -311,16 +314,31 @@ def _resolve_time_window(window: str) -> str | list[str]:
     if window in TIME_WINDOW_MAP:
         return TIME_WINDOW_MAP[window]
 
-    # Try to parse a numeric offset like 'last_N_weeks'
     import re
+    # Numeric offset: last_N_weeks / last_N_days / last_N_months
     m = re.match(r'last_(\d+)_(day|week|month)s?', window)
     if m:
         n, grain = m.group(1), m.group(2)
         return f'last {n} {grain}s'
 
-    # Unknown — default to last 30 days
-    log.warning('Unknown time window %r — defaulting to last 30 days', window)
-    return 'last 30 days'
+    # Specific quarter+year: q4_2025, 2025_q4, q42025, q4-2025, etc.
+    m = re.match(r'q([1-4])[\W_]?(\d{4})|(\d{4})[\W_]?q([1-4])', window)
+    if m:
+        q  = int(m.group(1) or m.group(4))
+        yr = int(m.group(2) or m.group(3))
+        q_months = {1: (1, 3, 31), 2: (4, 6, 30), 3: (7, 9, 30), 4: (10, 12, 31)}
+        sm, em, ed = q_months[q]
+        return [f'{yr}-{sm:02d}-01', f'{yr}-{em:02d}-{ed:02d}']
+
+    # Year only: 2025, year_2025, this_2025
+    m = re.search(r'\b(20\d{2})\b', window)
+    if m:
+        yr = m.group(1)
+        return [f'{yr}-01-01', f'{yr}-12-31']
+
+    # Unknown — default to last 4 weeks
+    log.warning('Unknown time window %r — defaulting to last 4 weeks', window)
+    return 'last 4 weeks'
 
 
 def _flatten_row(row: dict) -> dict:

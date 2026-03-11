@@ -378,21 +378,41 @@ class ASTQueryBuilder:
 
         # All filters use f.invoice_date directly (avoids dependency on dim_date join)
         time_filters = {
-            'last_4_weeks':  f"f.invoice_date >= {md} - INTERVAL 28 DAY",
-            'last_6_weeks':  f"f.invoice_date >= {md} - INTERVAL 42 DAY",
-            'last_12_weeks': f"f.invoice_date >= {md} - INTERVAL 84 DAY",
-            'this_month':    f"EXTRACT(MONTH FROM f.invoice_date) = EXTRACT(MONTH FROM {md}) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md})",
-            'mtd':           f"EXTRACT(MONTH FROM f.invoice_date) = EXTRACT(MONTH FROM {md}) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md})",
-            'last_month':    f"EXTRACT(MONTH FROM f.invoice_date) = EXTRACT(MONTH FROM {md} - INTERVAL 1 MONTH) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md} - INTERVAL 1 MONTH)",
-            'qtd':           f"EXTRACT(QUARTER FROM f.invoice_date) = EXTRACT(QUARTER FROM {md}) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md})",
-            'ytd':           f"EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md})",
-            'this_year':     f"EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md})",
-            'last_year':     f"EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md}) - 1",
+            'last_4_weeks':   f"f.invoice_date >= {md} - INTERVAL 28 DAY",
+            'last_6_weeks':   f"f.invoice_date >= {md} - INTERVAL 42 DAY",
+            'last_12_weeks':  f"f.invoice_date >= {md} - INTERVAL 84 DAY",
+            'this_month':     f"EXTRACT(MONTH FROM f.invoice_date) = EXTRACT(MONTH FROM {md}) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md})",
+            'mtd':            f"EXTRACT(MONTH FROM f.invoice_date) = EXTRACT(MONTH FROM {md}) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md})",
+            'last_month':     f"EXTRACT(MONTH FROM f.invoice_date) = EXTRACT(MONTH FROM {md} - INTERVAL 1 MONTH) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md} - INTERVAL 1 MONTH)",
+            'this_quarter':   f"EXTRACT(QUARTER FROM f.invoice_date) = EXTRACT(QUARTER FROM {md}) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md})",
+            'qtd':            f"EXTRACT(QUARTER FROM f.invoice_date) = EXTRACT(QUARTER FROM {md}) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md})",
+            'last_quarter':   f"EXTRACT(QUARTER FROM f.invoice_date) = EXTRACT(QUARTER FROM {md} - INTERVAL 3 MONTH) AND EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md} - INTERVAL 3 MONTH)",
+            'ytd':            f"EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md})",
+            'this_year':      f"EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md})",
+            'last_year':      f"EXTRACT(YEAR FROM f.invoice_date) = EXTRACT(YEAR FROM {md}) - 1",
         }
 
         sql = time_filters.get(window)
         if sql:
             return RawSQLExpr(sql=sql)
+
+        import re as _re
+        # Specific quarter+year: q4_2025, 2025_q4, q4-2025, q42025, etc.
+        m = _re.match(r'q([1-4])[\W_]?(\d{4})|(\d{4})[\W_]?q([1-4])', window)
+        if m:
+            q  = int(m.group(1) or m.group(4))
+            yr = int(m.group(2) or m.group(3))
+            sql = f"EXTRACT(QUARTER FROM f.invoice_date) = {q} AND EXTRACT(YEAR FROM f.invoice_date) = {yr}"
+            return RawSQLExpr(sql=sql)
+
+        # Year only: 2025, year_2025, this_2025, etc.
+        m = _re.search(r'\b(20\d{2})\b', window)
+        if m:
+            yr = int(m.group(1))
+            sql = f"EXTRACT(YEAR FROM f.invoice_date) = {yr}"
+            return RawSQLExpr(sql=sql)
+
+        # Unknown — no filter (return all data rather than silently wrong results)
         return None
 
     def _build_group_by(self, semantic_query: SemanticQuery) -> Optional[GroupByClause]:

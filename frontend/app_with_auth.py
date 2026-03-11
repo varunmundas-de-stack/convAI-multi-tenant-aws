@@ -206,7 +206,7 @@ def _needs_time_clarification(question: str) -> bool:
         'bottom', 'leading', 'compare', 'vs', 'versus', 'ranking', 'ranked',
     }
     time_words = {
-        'last', 'this', 'past', 'previous', 'next',
+        'last', 'this', 'past', 'previous', 'prior', 'next', 'recent', 'current',
         'week', 'month', 'quarter', 'year', 'annual', 'monthly', 'weekly', 'quarterly',
         'today', 'yesterday', 'ytd', 'mtd', 'qtd',
         'january', 'february', 'march', 'april', 'may', 'june',
@@ -216,7 +216,12 @@ def _needs_time_clarification(question: str) -> bool:
     }
     words = set(re.split(r'\W+', q))
     has_ranking = bool(words & ranking_words)
-    has_time = bool(words & time_words) or bool(re.search(r'\b20\d{2}\b', q))
+    has_time = (
+        bool(words & time_words)
+        or bool(re.search(r'20\d{2}', q))          # year anywhere (e.g. q42025)
+        or bool(re.search(r'q[1-4]', q))            # q1-q4 even concatenated
+        or bool(re.search(r'h[12]\s*20\d{2}', q))  # H1/H2 half-year
+    )
     return has_ranking and not has_time
 
 def _kw_match(text, keywords):

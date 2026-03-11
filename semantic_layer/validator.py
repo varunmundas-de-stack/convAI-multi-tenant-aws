@@ -60,17 +60,9 @@ class SemanticValidator:
         if len(semantic_query.dimensionality.group_by) > 4:
             errors.append("Too many dimensions (max 4 to prevent performance issues)")
 
-        # 6. Validate time window
-        valid_windows = [
-            'last_4_weeks', 'last_6_weeks', 'last_12_weeks',
-            'mtd', 'qtd', 'ytd', 'this_month', 'last_month',
-            'this_year', 'last_year', 'this_quarter', 'last_quarter'
-        ]
-        if semantic_query.time_context.window not in valid_windows:
-            errors.append(
-                f"Invalid time window: {semantic_query.time_context.window}. "
-                f"Valid: {', '.join(valid_windows)}"
-            )
+        # 6. Time window — accept any non-empty string; the query builder
+        #    resolves windows like 'q4_2025', 'last_month', 'ytd', etc.
+        #    Strict whitelisting causes false rejections for valid date expressions.
 
         # 7. Validate filters
         for filter_obj in semantic_query.filters:

@@ -126,7 +126,9 @@ class SemanticValidator:
             # Product
             'brand_name', 'brand_code', 'category_name', 'sku_name', 'sku_code', 'pack_size',
             # Geography
-            'state_name', 'zone_name', 'district_name', 'town_name', 'outlet_name',
+            'state_name', 'district_name', 'town_name',
+            # Sales territory (stored in dim_sales_hierarchy)
+            'zone_name', 'region_name',
             # Customer
             'distributor_name', 'retailer_name', 'outlet_type',
             # Channel

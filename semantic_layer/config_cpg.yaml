@@ -243,22 +243,13 @@ dimensions:
     table: "dim_geography"
     key: "geography_key"
     attributes:
-      outlet_code: "outlet_code"
-      outlet_name: "outlet_name"
       town_name: "town_name"
       district_name: "district_name"
       state_name: "state_name"
-      zone_name: "zone_name"
-      region_name: "region_name"
-      outlet_classification: "outlet_classification"
-      population_tier: "population_tier"
-      urban_rural: "urban_rural"
     hierarchy:
-      - zone_name
       - state_name
       - district_name
       - town_name
-      - outlet_name
 
   customer:
     table: "dim_customer"

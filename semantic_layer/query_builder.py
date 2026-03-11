@@ -168,10 +168,11 @@ class ASTQueryBuilder:
             'sku_name': 'dim_product',
             'sku_code': 'dim_product',
             'state_name': 'dim_geography',
-            'zone_name': 'dim_geography',
             'district_name': 'dim_geography',
             'town_name': 'dim_geography',
-            'outlet_name': 'dim_geography',
+            # zone_name and region_name are in dim_sales_hierarchy, not dim_geography
+            'zone_name': 'dim_sales_hierarchy',
+            'region_name': 'dim_sales_hierarchy',
             'distributor_name': 'dim_customer',
             'retailer_name': 'dim_customer',
             'outlet_type': 'dim_customer',
@@ -468,12 +469,13 @@ class ASTQueryBuilder:
             'sku_code': 'p.sku_code',
             'pack_size': 'p.pack_size',
 
-            # Geography dimensions
+            # Geography dimensions (dim_geography only has state/district/town)
             'state_name': 'g.state_name',
-            'zone_name': 'g.zone_name',
             'district_name': 'g.district_name',
             'town_name': 'g.town_name',
-            'outlet_name': 'g.outlet_name',
+            # zone_name and region_name are in dim_sales_hierarchy (alias sh)
+            'zone_name': 'sh.zone_name',
+            'region_name': 'sh.region_name',
 
             # Customer dimensions
             'distributor_name': 'c.distributor_name',

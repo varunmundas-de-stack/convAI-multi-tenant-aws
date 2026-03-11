@@ -41,16 +41,5 @@ cube('DimGeography', {
       title: `Town`,
     },
 
-    region_name: {
-      sql: `region_name`,
-      type: `string`,
-      title: `Region`,
-    },
-
-    zone_name: {
-      sql: `zone_name`,
-      type: `string`,
-      title: `Zone`,
-    },
   },
 });

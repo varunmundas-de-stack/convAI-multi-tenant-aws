@@ -755,8 +755,12 @@ def process_query_stream():
 
             errors = components['validator'].validate(semantic_query)
             if errors:
-                yield _sse({"type": "result", "success": False,
-                            "error": f"Validation errors: {', '.join(errors)}"})
+                yield _sse({
+                    "type": "result", "success": False,
+                    "response": f"<p class='text-red-600 text-sm'>I couldn't understand that query. Please try rephrasing it.</p>",
+                    "error": f"Validation errors: {', '.join(errors)}",
+                    "raw_data": None, "metadata": None,
+                })
                 return
 
             hierarchy_restricted = {'SO', 'ASM', 'ZSM'}
@@ -833,8 +837,14 @@ def process_query_stream():
         except Exception as exc:
             auth_manager.log_query(user_id, username, client_id, question,
                                    None, False, str(exc))
-            yield _sse({"type": "result", "success": False,
-                        "error": f"Unexpected error: {exc}"})
+            yield _sse({
+                "type": "result",
+                "success": False,
+                "response": f"<p class='text-red-600 text-sm'>Sorry, I couldn't process that query. Please try rephrasing it.</p>",
+                "error": str(exc),
+                "raw_data": None,
+                "metadata": None,
+            })
 
     return Response(generate(), mimetype='text/event-stream',
                     headers={'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})

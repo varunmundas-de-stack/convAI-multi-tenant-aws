@@ -232,10 +232,11 @@ Output ONLY valid JSON matching this schema:
 
 **Dimensions:**
 - Product: category_name, brand_name, sku_name, pack_size
-- Geography: zone_name, state_name, district_name, town_name, outlet_name
+- Geography: state_name, district_name, town_name
+- Sales Territory: zone_name, region_name (stored in sales hierarchy)
 - Customer: distributor_name, retailer_name, outlet_type
 - Channel: channel_name (GT, MT, E-Com, IWS, Pharma)
-- Date: year, quarter, month, month_name, week, fiscal_year, fiscal_quarter, season
+- Date: year, quarter, month, month_name, week
 
 **Time Windows:**
 last_4_weeks, last_6_weeks, last_12_weeks, mtd, qtd, ytd, this_month, last_month, this_year, last_year
@@ -444,6 +445,8 @@ Parse into SemanticQuery JSON:"""
             group_by.append('retailer_name')
         if any(word in question_lower for word in ['by zone', 'zone']):
             group_by.append('zone_name')
+        if any(word in question_lower for word in ['by region', 'region']):
+            group_by.append('region_name')
         if any(word in question_lower for word in ['by district', 'district']):
             group_by.append('district_name')
 

@@ -44,28 +44,23 @@ DIMENSION_TO_MEMBER: dict[str, str] = {
     'brand_name':    'DimProduct.brand_name',
     'category_name': 'DimProduct.category_name',
     'sku_name':      'DimProduct.sku_name',
-    'sub_category':  'DimProduct.sub_category',
     'pack_size':     'DimProduct.pack_size',
-    # Geography
+    # Geography (dim_geography only has state/district/town)
     'state_name':    'DimGeography.state_name',
     'district_name': 'DimGeography.district_name',
     'town_name':     'DimGeography.town_name',
-    'region_name':   'DimGeography.region_name',
-    'zone_name':     'DimGeography.zone_name',
     # Customer
     'distributor_name': 'DimCustomer.distributor_name',
     'retailer_name':    'DimCustomer.retailer_name',
     'outlet_type':      'DimCustomer.outlet_type',
     # Channel
     'channel_name': 'DimChannel.channel_name',
-    'channel_type': 'DimChannel.channel_type',
     # Date grains
     'year':       'DimDate.year',
     'quarter':    'DimDate.quarter',
     'month':      'DimDate.month',
     'month_name': 'DimDate.month_name',
     'week':       'DimDate.week',
-    'week_label': 'DimDate.week_label',
     'date':       'FactSecondarySales.invoice_date',
     # Sales hierarchy
     'so_code':  'DimSalesHierarchy.so_code',
@@ -76,6 +71,9 @@ DIMENSION_TO_MEMBER: dict[str, str] = {
     'zsm_name': 'DimSalesHierarchy.zsm_name',
     'nsm_code': 'DimSalesHierarchy.nsm_code',
     'nsm_name': 'DimSalesHierarchy.nsm_name',
+    # Zone/region are in dim_sales_hierarchy, not dim_geography
+    'zone_name':   'DimSalesHierarchy.zone_name',
+    'region_name': 'DimSalesHierarchy.region_name',
 }
 
 # SemanticQuery filter operator → Cube.js filter operator

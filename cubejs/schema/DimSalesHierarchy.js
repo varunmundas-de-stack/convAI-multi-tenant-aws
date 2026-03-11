@@ -75,5 +75,18 @@ cube('DimSalesHierarchy', {
       type: `string`,
       title: `NSM Name`,
     },
+
+    // Geographic hierarchy (stored in sales hierarchy, not dim_geography)
+    zone_name: {
+      sql: `zone_name`,
+      type: `string`,
+      title: `Zone`,
+    },
+
+    region_name: {
+      sql: `region_name`,
+      type: `string`,
+      title: `Region`,
+    },
   },
 });

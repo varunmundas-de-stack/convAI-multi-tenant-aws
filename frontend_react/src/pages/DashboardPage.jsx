@@ -27,6 +27,10 @@ export default function DashboardPage({ user, onLogout }) {
   const [sidebarOpen, setSidebarOpen]         = useState(false)
   const [activeSessionId, setActiveSessionId] = useState(null)
   const [prefillQuery, setPrefillQuery]       = useState(null)
+  // chatKey increments only on explicit navigation (sidebar select / new-chat button).
+  // onSessionCreated (auto-create during handleSend) must NOT change this key, or React
+  // will unmount ChatTab mid-stream and the response is lost.
+  const [chatKey, setChatKey]                 = useState(0)
 
   useEffect(() => {
     refreshBadge()
@@ -51,8 +55,14 @@ export default function DashboardPage({ user, onLogout }) {
 
   const handleNewSession = (sessionId) => {
     setActiveSessionId(sessionId)
+    setChatKey(k => k + 1)   // explicit new chat → remount ChatTab
     setActiveTab('chat')
     setPrefillQuery(null)
+  }
+
+  const handleSelectSession = (sessionId) => {
+    setActiveSessionId(sessionId)
+    setChatKey(k => k + 1)   // switching sessions → remount to load history
   }
 
   return (
@@ -84,7 +94,7 @@ export default function DashboardPage({ user, onLogout }) {
         {activeTab === 'chat' && (
           <SessionSidebar
             activeSessionId={activeSessionId}
-            onSelect={setActiveSessionId}
+            onSelect={handleSelectSession}
             onNew={handleNewSession}
             isOpen={sidebarOpen}
             onClose={() => setSidebarOpen(false)}
@@ -106,7 +116,7 @@ export default function DashboardPage({ user, onLogout }) {
             )}
             {activeTab === 'chat' && (
               <ChatTab
-                key={activeSessionId}
+                key={chatKey}
                 user={user}
                 sessionId={activeSessionId}
                 onSessionCreated={setActiveSessionId}

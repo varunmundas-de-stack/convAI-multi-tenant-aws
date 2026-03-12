@@ -900,8 +900,8 @@ def format_single_query_response(result):
         html_parts.append('<tbody>')
         for row in rows:
             html_parts.append('<tr>')
-            for value in row.values():
-                formatted_value = format_value(value)
+            for key, value in row.items():
+                formatted_value = format_value(value, key)
                 html_parts.append(f'<td>{formatted_value}</td>')
             html_parts.append('</tr>')
         html_parts.append('</tbody>')
@@ -968,14 +968,29 @@ def format_diagnostic_response(result):
     return ''.join(html_parts)
 
 
-def format_value(value):
+_CURRENCY_KEYWORDS = ('value', 'sales', 'revenue', 'amount', 'price', 'sale', 'turnover')
+
+def _format_indian_currency(value):
+    """Format a numeric value in Indian currency (lakhs/crores)."""
+    if value >= 1_00_00_000:  # >= 1 crore
+        return f'₹{value / 1_00_00_000:.2f} Cr'
+    elif value >= 1_00_000:   # >= 1 lakh
+        return f'₹{value / 1_00_000:.2f} L'
+    else:
+        return f'₹{value:,.2f}'
+
+def format_value(value, key=''):
     """Format cell value for display"""
     if value is None:
         return '-'
-    elif isinstance(value, float):
-        return f'{value:,.2f}'
-    elif isinstance(value, int):
-        return f'{value:,}'
+    elif isinstance(value, (int, float)):
+        is_currency = any(w in key.lower() for w in _CURRENCY_KEYWORDS)
+        if is_currency and abs(value) >= 0:
+            return _format_indian_currency(abs(value)) if value >= 0 else f'-{_format_indian_currency(abs(value))}'
+        elif isinstance(value, float):
+            return f'{value:,.2f}'
+        else:
+            return f'{value:,}'
     else:
         return str(value)
 

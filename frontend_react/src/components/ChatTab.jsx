@@ -249,7 +249,7 @@ export default function ChatTab({ user, sessionId, onSessionCreated, prefillQuer
             )}
           </div>
           <motion.button
-            onClick={handleSend}
+            onClick={() => handleSend()}
             disabled={loading || !input.trim()}
             className="text-white px-5 py-2.5 rounded-2xl font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
             style={{

@@ -199,9 +199,12 @@ function NaturalSummary({ data }) {
 
   if (!valCol) return null
 
-  const fmt = (n) => typeof n === 'number'
-    ? n.toLocaleString('en-IN', { maximumFractionDigits: 2 })
-    : String(n ?? '')
+  const fmt = (n) => {
+    if (typeof n !== 'number') return String(n ?? '')
+    if (n >= 1_00_00_000) return `₹${(n / 1_00_00_000).toFixed(2)} Cr`
+    if (n >= 1_00_000)    return `₹${(n / 1_00_000).toFixed(2)} L`
+    return n.toLocaleString('en-IN', { maximumFractionDigits: 2 })
+  }
 
   const peakRow = count === 1 ? data[0]
     : [...data].sort((a, b) => (b[valCol] ?? 0) - (a[valCol] ?? 0))[0]
